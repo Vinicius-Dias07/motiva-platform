@@ -1,12 +1,35 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import exifr from "exifr";
 import {
-  Globe, BarChart2, Bell, Settings, Upload,
-  AlertTriangle, CheckCircle, TrendingUp, TrendingDown, Minus,
-  Wifi, ShieldCheck, Activity, ImageIcon, X, ZoomIn, ChevronLeft, ChevronRight
+  Globe,
+  BarChart2,
+  Bell,
+  Settings,
+  Upload,
+  AlertTriangle,
+  CheckCircle,
+  TrendingUp,
+  TrendingDown,
+  Minus,
+  Wifi,
+  ShieldCheck,
+  Activity,
+  ImageIcon,
+  X,
+  ZoomIn,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, BarChart, Bar
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  BarChart,
+  Bar,
 } from "recharts";
 import { clsx } from "clsx";
 
@@ -35,21 +58,25 @@ const regionData = [
   { regiao: "Centro", eventos: 312 },
 ];
 
-const alertsData = [
-  { id: "ALT-001", severity: "high", title: "Concentração anômala detectada", location: "Zona Norte — Setor 7", time: "14:23:07", status: "ativo" },
-  { id: "ALT-002", severity: "medium", title: "Variação de padrão de tráfego", location: "Corredor Leste — KM 47", time: "13:51:32", status: "ativo" },
-  { id: "ALT-003", severity: "low", title: "Atualização de limite de zona", location: "Perímetro Sul", time: "13:12:19", status: "resolvido" },
-  { id: "ALT-004", severity: "high", title: "Falha de sensor primário", location: "Torre de Monitoramento C", time: "12:48:55", status: "ativo" },
-  { id: "ALT-005", severity: "medium", title: "Desvio de rota detectado", location: "Via Central — Nó 12", time: "12:05:41", status: "investigando" },
-  { id: "ALT-006", severity: "low", title: "Calibração de sensor necessária", location: "Estação Oeste 3", time: "11:33:28", status: "pendente" },
-  { id: "ALT-007", severity: "high", title: "Acesso não autorizado — área restrita", location: "Zona Industrial — Bloco D", time: "10:57:14", status: "ativo" },
-  { id: "ALT-008", severity: "medium", title: "Temperatura acima do limiar", location: "Data Center Norte", time: "10:21:03", status: "resolvido" },
-];
-
 const severityConfig = {
-  high: { color: "text-red-400", bg: "bg-red-500/5 border-red-500/25", dot: "bg-red-400", label: "Alto" },
-  medium: { color: "text-amber-400", bg: "bg-amber-500/5 border-amber-500/25", dot: "bg-amber-400", label: "Médio" },
-  low: { color: "text-cyan-400", bg: "bg-cyan-500/5 border-cyan-500/20", dot: "bg-cyan-400", label: "Baixo" },
+  high: {
+    color: "text-red-400",
+    bg: "bg-red-500/5 border-red-500/25",
+    dot: "bg-red-400",
+    label: "Alto",
+  },
+  medium: {
+    color: "text-amber-400",
+    bg: "bg-amber-500/5 border-amber-500/25",
+    dot: "bg-amber-400",
+    label: "Médio",
+  },
+  low: {
+    color: "text-cyan-400",
+    bg: "bg-cyan-500/5 border-cyan-500/20",
+    dot: "bg-cyan-400",
+    label: "Baixo",
+  },
 };
 
 const statusConfig = {
@@ -85,27 +112,54 @@ const tabs: { id: Tab; label: string; Icon: React.FC<{ size?: number }> }[] = [
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function StatTile({
-  label, value, unit, trend, delta,
+  label,
+  value,
+  unit,
+  trend,
+  delta,
 }: {
-  label: string; value: string | number; unit?: string;
-  trend?: "up" | "down" | "flat"; delta?: string;
+  label: string;
+  value: string | number;
+  unit?: string;
+  trend?: "up" | "down" | "flat";
+  delta?: string;
 }) {
   return (
     <div className="bg-card border border-border p-4 flex flex-col gap-1 hover:border-primary/20 transition-colors">
-      <span className="text-muted-foreground text-[10px] font-mono uppercase tracking-widest">{label}</span>
+      <span className="text-muted-foreground text-[10px] font-mono uppercase tracking-widest">
+        {label}
+      </span>
       <div className="flex items-end gap-2 mt-1">
-        <span className="text-foreground text-2xl font-mono font-medium tabular-nums">{value}</span>
-        {unit && <span className="text-muted-foreground text-sm font-mono mb-0.5">{unit}</span>}
+        <span className="text-foreground text-2xl font-mono font-medium tabular-nums">
+          {value}
+        </span>
+        {unit && (
+          <span className="text-muted-foreground text-sm font-mono mb-0.5">
+            {unit}
+          </span>
+        )}
       </div>
       {delta && (
         <div className="flex items-center gap-1 mt-0.5">
           {trend === "up" && <TrendingUp size={11} className="text-primary" />}
-          {trend === "down" && <TrendingDown size={11} className="text-destructive" />}
-          {trend === "flat" && <Minus size={11} className="text-muted-foreground" />}
-          <span className={clsx(
-            "text-[10px] font-mono",
-            trend === "up" ? "text-primary" : trend === "down" ? "text-destructive" : "text-muted-foreground"
-          )}>{delta}</span>
+          {trend === "down" && (
+            <TrendingDown size={11} className="text-destructive" />
+          )}
+          {trend === "flat" && (
+            <Minus size={11} className="text-muted-foreground" />
+          )}
+          <span
+            className={clsx(
+              "text-[10px] font-mono",
+              trend === "up"
+                ? "text-primary"
+                : trend === "down"
+                  ? "text-destructive"
+                  : "text-muted-foreground",
+            )}
+          >
+            {delta}
+          </span>
         </div>
       )}
     </div>
@@ -114,140 +168,20 @@ function StatTile({
 
 // ─── Map Tab ──────────────────────────────────────────────────────────────────
 
-function MapTab({ mapUrl, onMapUrlChange }: {
-  mapUrl: string;
-  onMapUrlChange: (url: string) => void;
-}) {
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [urlInput, setUrlInput] = useState("");
-  const [showSwap, setShowSwap] = useState(false);
-
-  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const url = URL.createObjectURL(file);
-    onMapUrlChange(url);
-    setShowSwap(false);
-  };
-
-  const handleUrlSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (urlInput.trim()) {
-      onMapUrlChange(urlInput.trim());
-      setShowSwap(false);
-    }
-  };
-
-  if (mapUrl && !showSwap) {
-    return (
-      <div className="relative w-full h-full">
-        <iframe
-          src={mapUrl}
-          className="w-full h-full border-0"
-          title="Mapa"
-          sandbox="allow-scripts allow-same-origin allow-forms"
-        />
-        <div className="absolute top-3 right-3 flex flex-col gap-2">
-          <button
-            onClick={() => setShowSwap(true)}
-            className="bg-card/90 backdrop-blur border border-border text-muted-foreground hover:text-primary hover:border-primary/30 px-3 py-1.5 text-[11px] font-mono flex items-center gap-2 transition-colors"
-          >
-            <Upload size={11} />
-            Trocar mapa
-          </button>
-        </div>
-        <div className="absolute bottom-3 left-3 bg-card/80 backdrop-blur border border-border px-3 py-2">
-          <div className="flex items-center gap-2 text-primary text-[11px] font-mono">
-            <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-            MAPA ATIVO
-          </div>
-        </div>
-      </div>
-    );
-  }
-
+function MapTab() {
   return (
-    <div className="relative w-full h-full flex items-center justify-center bg-background overflow-hidden">
-      {/* Grid overlay */}
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          backgroundImage:
-            "linear-gradient(rgba(34,211,238,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(34,211,238,0.06) 1px, transparent 1px)",
-          backgroundSize: "48px 48px",
-        }}
-      />
-      {/* Radial fade */}
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          background: "radial-gradient(ellipse at center, transparent 20%, #06080d 80%)",
-        }}
+    <div className="relative w-full h-full overflow-hidden">
+      <iframe
+        src="/mapa_rodovias.html"
+        className="w-full h-full border-0"
+        title="Mapa de Rodovias Motiva"
       />
 
-      <div className="relative z-10 flex flex-col items-center gap-8 max-w-md w-full mx-6">
-        <div className="text-center">
-          <div className="w-16 h-16 border border-primary/30 flex items-center justify-center mx-auto mb-4">
-            <Globe className="text-primary/50" size={32} />
-          </div>
-          <h2 className="text-foreground text-lg font-mono font-medium mb-1 tracking-wide">
-            Nenhum mapa carregado
-          </h2>
-          <p className="text-muted-foreground text-xs font-mono">
-            Carregue um arquivo HTML de mapa ou informe uma URL
-          </p>
+      <div className="absolute bottom-3 left-3 bg-card/80 backdrop-blur border border-border px-3 py-2">
+        <div className="flex items-center gap-2 text-primary text-[11px] font-mono">
+          <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+          MAPA ATIVO
         </div>
-
-        <div className="w-full space-y-4">
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="w-full border border-dashed border-primary/30 hover:border-primary/60 bg-primary/[0.03] hover:bg-primary/[0.07] transition-all p-8 flex flex-col items-center gap-3 group"
-          >
-            <Upload className="text-primary/50 group-hover:text-primary/80 transition-colors" size={22} />
-            <div className="text-center">
-              <div className="text-foreground font-mono text-sm">Carregar arquivo HTML</div>
-              <div className="text-muted-foreground font-mono text-xs mt-1">Clique para selecionar • .html, .htm</div>
-            </div>
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".html,.htm"
-            className="hidden"
-            onChange={handleFile}
-          />
-
-          <div className="flex items-center gap-3">
-            <div className="flex-1 h-px bg-border" />
-            <span className="text-muted-foreground font-mono text-[10px] uppercase tracking-widest">ou</span>
-            <div className="flex-1 h-px bg-border" />
-          </div>
-
-          <form onSubmit={handleUrlSubmit} className="flex gap-2">
-            <input
-              type="text"
-              value={urlInput}
-              onChange={(e) => setUrlInput(e.target.value)}
-              placeholder="https://exemplo.com/mapa.html"
-              className="flex-1 bg-card border border-border px-3 py-2.5 text-sm font-mono text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary/50 transition-colors"
-            />
-            <button
-              type="submit"
-              className="bg-primary text-primary-foreground px-4 py-2.5 text-sm font-mono hover:bg-primary/90 transition-colors font-medium"
-            >
-              Carregar
-            </button>
-          </form>
-        </div>
-
-        {mapUrl && (
-          <button
-            onClick={() => setShowSwap(false)}
-            className="text-muted-foreground text-xs font-mono hover:text-foreground transition-colors"
-          >
-            ← Voltar ao mapa atual
-          </button>
-        )}
       </div>
     </div>
   );
@@ -272,10 +206,32 @@ function AnalyticsTab() {
   return (
     <div className="p-5 space-y-5 h-full overflow-auto">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatTile label="Total de Eventos" value="884" trend="up" delta="+12.4% hoje" />
-        <StatTile label="Alertas Ativos" value="4" trend="up" delta="+2 última hora" />
-        <StatTile label="Zonas Monitoradas" value="38" unit="zonas" trend="flat" delta="sem alteração" />
-        <StatTile label="Tempo Online" value="99.7" unit="%" trend="flat" delta="30 dias" />
+        <StatTile
+          label="Total de Eventos"
+          value="884"
+          trend="up"
+          delta="+12.4% hoje"
+        />
+        <StatTile
+          label="Alertas Ativos"
+          value="4"
+          trend="up"
+          delta="+2 última hora"
+        />
+        <StatTile
+          label="Zonas Monitoradas"
+          value="38"
+          unit="zonas"
+          trend="flat"
+          delta="sem alteração"
+        />
+        <StatTile
+          label="Tempo Online"
+          value="99.7"
+          unit="%"
+          trend="flat"
+          delta="30 dias"
+        />
       </div>
 
       <div className="bg-card border border-border p-5">
@@ -300,7 +256,10 @@ function AnalyticsTab() {
           </div>
         </div>
         <ResponsiveContainer width="100%" height={190}>
-          <AreaChart data={hourlyData} margin={{ top: 4, right: 4, bottom: 0, left: -16 }}>
+          <AreaChart
+            data={hourlyData}
+            margin={{ top: 4, right: 4, bottom: 0, left: -16 }}
+          >
             <defs>
               <linearGradient id="gEvt" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="#22d3ee" stopOpacity={0.15} />
@@ -311,21 +270,49 @@ function AnalyticsTab() {
                 <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="2 6" stroke="rgba(34,211,238,0.06)" />
+            <CartesianGrid
+              strokeDasharray="2 6"
+              stroke="rgba(34,211,238,0.06)"
+            />
             <XAxis
               dataKey="time"
-              tick={{ fill: "#526070", fontSize: 10, fontFamily: "JetBrains Mono" }}
+              tick={{
+                fill: "#526070",
+                fontSize: 10,
+                fontFamily: "JetBrains Mono",
+              }}
               tickLine={false}
               axisLine={false}
             />
             <YAxis
-              tick={{ fill: "#526070", fontSize: 10, fontFamily: "JetBrains Mono" }}
+              tick={{
+                fill: "#526070",
+                fontSize: 10,
+                fontFamily: "JetBrains Mono",
+              }}
               tickLine={false}
               axisLine={false}
             />
-            <Tooltip {...tooltipStyle} cursor={{ stroke: "rgba(34,211,238,0.12)", strokeWidth: 1 }} />
-            <Area type="monotone" dataKey="eventos" stroke="#22d3ee" strokeWidth={1.5} fill="url(#gEvt)" dot={false} />
-            <Area type="monotone" dataKey="alertas" stroke="#f59e0b" strokeWidth={1.5} fill="url(#gAlt)" dot={false} />
+            <Tooltip
+              {...tooltipStyle}
+              cursor={{ stroke: "rgba(34,211,238,0.12)", strokeWidth: 1 }}
+            />
+            <Area
+              type="monotone"
+              dataKey="eventos"
+              stroke="#22d3ee"
+              strokeWidth={1.5}
+              fill="url(#gEvt)"
+              dot={false}
+            />
+            <Area
+              type="monotone"
+              dataKey="alertas"
+              stroke="#f59e0b"
+              strokeWidth={1.5}
+              fill="url(#gAlt)"
+              dot={false}
+            />
           </AreaChart>
         </ResponsiveContainer>
       </div>
@@ -340,16 +327,31 @@ function AnalyticsTab() {
           </p>
         </div>
         <ResponsiveContainer width="100%" height={170}>
-          <BarChart data={regionData} margin={{ top: 4, right: 4, bottom: 0, left: -16 }}>
-            <CartesianGrid strokeDasharray="2 6" stroke="rgba(34,211,238,0.06)" vertical={false} />
+          <BarChart
+            data={regionData}
+            margin={{ top: 4, right: 4, bottom: 0, left: -16 }}
+          >
+            <CartesianGrid
+              strokeDasharray="2 6"
+              stroke="rgba(34,211,238,0.06)"
+              vertical={false}
+            />
             <XAxis
               dataKey="regiao"
-              tick={{ fill: "#526070", fontSize: 10, fontFamily: "JetBrains Mono" }}
+              tick={{
+                fill: "#526070",
+                fontSize: 10,
+                fontFamily: "JetBrains Mono",
+              }}
               tickLine={false}
               axisLine={false}
             />
             <YAxis
-              tick={{ fill: "#526070", fontSize: 10, fontFamily: "JetBrains Mono" }}
+              tick={{
+                fill: "#526070",
+                fontSize: 10,
+                fontFamily: "JetBrains Mono",
+              }}
               tickLine={false}
               axisLine={false}
             />
@@ -357,7 +359,12 @@ function AnalyticsTab() {
               {...tooltipStyle}
               cursor={{ fill: "rgba(34,211,238,0.04)" }}
             />
-            <Bar dataKey="eventos" fill="#22d3ee" fillOpacity={0.6} radius={0} />
+            <Bar
+              dataKey="eventos"
+              fill="#22d3ee"
+              fillOpacity={0.6}
+              radius={0}
+            />
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -367,12 +374,26 @@ function AnalyticsTab() {
 
 // ─── Alerts Tab ───────────────────────────────────────────────────────────────
 
-function AlertsTab() {
-  const [filter, setFilter] = useState<"todos" | "high" | "medium" | "low">("todos");
+function AlertsTab({
+  alerts,
+  onUpdateStatus,
+}: {
+  alerts: Alert[];
+  onUpdateStatus: (id: string, status: AlertStatus) => void;
+}) {
+  const [filter, setFilter] = useState<"todos" | "high" | "medium" | "low">(
+    "todos",
+  );
 
-  const filtered = alertsData.filter((a) => filter === "todos" || a.severity === filter);
-  const activeHigh = alertsData.filter((a) => a.severity === "high" && a.status === "ativo").length;
-  const activeMed = alertsData.filter((a) => a.severity === "medium" && a.status === "ativo").length;
+  const filtered = alerts.filter(
+    (a) => filter === "todos" || a.severity === filter,
+  );
+  const activeHigh = alerts.filter(
+    (a) => a.severity === "high" && a.status === "ativo",
+  ).length;
+  const activeMed = alerts.filter(
+    (a) => a.severity === "medium" && a.status === "ativo",
+  ).length;
 
   return (
     <div className="p-5 space-y-5 h-full overflow-auto">
@@ -381,19 +402,25 @@ function AlertsTab() {
           <div className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest mb-2">
             Críticos Ativos
           </div>
-          <div className="text-3xl font-mono text-red-400 tabular-nums">{activeHigh}</div>
+          <div className="text-3xl font-mono text-red-400 tabular-nums">
+            {activeHigh}
+          </div>
         </div>
         <div className="bg-amber-500/5 border border-amber-500/20 p-4">
           <div className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest mb-2">
             Médios Ativos
           </div>
-          <div className="text-3xl font-mono text-amber-400 tabular-nums">{activeMed}</div>
+          <div className="text-3xl font-mono text-amber-400 tabular-nums">
+            {activeMed}
+          </div>
         </div>
         <div className="bg-card border border-border p-4">
           <div className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest mb-2">
             Total Hoje
           </div>
-          <div className="text-3xl font-mono text-foreground tabular-nums">{alertsData.length}</div>
+          <div className="text-3xl font-mono text-foreground tabular-nums">
+            {alerts.length}
+          </div>
         </div>
       </div>
 
@@ -406,46 +433,99 @@ function AlertsTab() {
               "px-3 py-1.5 text-[10px] font-mono uppercase tracking-widest border transition-colors",
               filter === f
                 ? "border-primary bg-primary/10 text-primary"
-                : "border-border text-muted-foreground hover:text-foreground hover:border-border/60"
+                : "border-border text-muted-foreground hover:text-foreground hover:border-border/60",
             )}
           >
-            {f === "todos" ? "Todos" : f === "high" ? "Alto" : f === "medium" ? "Médio" : "Baixo"}
+            {f === "todos"
+              ? "Todos"
+              : f === "high"
+                ? "Alto"
+                : f === "medium"
+                  ? "Médio"
+                  : "Baixo"}
           </button>
         ))}
       </div>
 
       <div className="space-y-2">
         {filtered.map((alert) => {
-          const sev = severityConfig[alert.severity as keyof typeof severityConfig];
+          const sev =
+            severityConfig[alert.severity as keyof typeof severityConfig];
           const sts = statusConfig[alert.status as keyof typeof statusConfig];
           return (
             <div
               key={alert.id}
               className={clsx(
                 "border p-4 transition-colors hover:bg-white/[0.015] cursor-default",
-                sev.bg
+                sev.bg,
               )}
             >
               <div className="flex items-start justify-between gap-4">
                 <div className="flex items-start gap-3 min-w-0">
-                  <span className={clsx("w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0", sev.dot)} />
+                  <span
+                    className={clsx(
+                      "w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0",
+                      sev.dot,
+                    )}
+                  />
                   <div className="min-w-0">
-                    <div className="text-sm font-sans text-foreground leading-snug">{alert.title}</div>
+                    <div className="text-sm font-sans text-foreground leading-snug">
+                      {alert.title}
+                    </div>
                     <div className="text-[11px] font-mono text-muted-foreground mt-0.5">
                       {alert.location}
+                      {alert.imageId && (
+                        <div className="text-[10px] font-mono text-muted-foreground/60 mt-1">
+                          Origem: {alert.imageId}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
                 <div className="flex-shrink-0 text-right">
-                  <div className={clsx("text-xs font-mono", sts.color)}>{sts.label}</div>
+                  <div className={clsx("text-xs font-mono", sts.color)}>
+                    {sts.label}
+                  </div>
                   <div className="text-[11px] font-mono text-muted-foreground mt-0.5 tabular-nums">
                     {alert.time}
                   </div>
                 </div>
               </div>
               <div className="flex items-center gap-2 mt-2 ml-4">
-                <span className="text-[10px] font-mono text-muted-foreground/50">{alert.id}</span>
-                <span className={clsx("text-[10px] font-mono", sev.color)}>· {sev.label}</span>
+                <span className="text-[10px] font-mono text-muted-foreground/50">
+                  {alert.id}
+                </span>
+                <span className={clsx("text-[10px] font-mono", sev.color)}>
+                  · {sev.label}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 mt-3 ml-4">
+                {alert.status === "ativo" && (
+                  <button
+                    onClick={() => onUpdateStatus(alert.id, "investigando")}
+                    className="px-2.5 py-1.5 text-[10px] font-mono border border-amber-500/30 text-amber-400 hover:bg-amber-500/10 transition-colors"
+                  >
+                    Investigar
+                  </button>
+                )}
+
+                {alert.status === "investigando" && (
+                  <button
+                    onClick={() => onUpdateStatus(alert.id, "resolvido")}
+                    className="px-2.5 py-1.5 text-[10px] font-mono border border-green-500/30 text-green-400 hover:bg-green-500/10 transition-colors"
+                  >
+                    Resolver
+                  </button>
+                )}
+
+                {alert.status === "pendente" && (
+                  <button
+                    onClick={() => onUpdateStatus(alert.id, "ativo")}
+                    className="px-2.5 py-1.5 text-[10px] font-mono border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors"
+                  >
+                    Ativar
+                  </button>
+                )}
               </div>
             </div>
           );
@@ -457,11 +537,19 @@ function AlertsTab() {
 
 // ─── Settings Tab ─────────────────────────────────────────────────────────────
 
-function SettingsTab({ onMapUrlChange }: { onMapUrlChange: (url: string) => void }) {
+function SettingsTab({
+  onMapUrlChange,
+}: {
+  onMapUrlChange: (url: string) => void;
+}) {
   const [urlInput, setUrlInput] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [refreshInterval, setRefreshInterval] = useState("30");
-  const [notifications, setNotifications] = useState({ high: true, medium: true, low: false });
+  const [notifications, setNotifications] = useState({
+    high: true,
+    medium: true,
+    low: false,
+  });
   const [saved, setSaved] = useState(false);
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -563,7 +651,7 @@ function SettingsTab({ onMapUrlChange }: { onMapUrlChange: (url: string) => void
                 "px-4 py-2 text-sm font-mono border transition-colors",
                 refreshInterval === v
                   ? "border-primary bg-primary/10 text-primary"
-                  : "border-border text-muted-foreground hover:border-border/60 hover:text-foreground"
+                  : "border-border text-muted-foreground hover:border-border/60 hover:text-foreground",
               )}
             >
               {v === "300" ? "5 min" : `${v}s`}
@@ -585,9 +673,21 @@ function SettingsTab({ onMapUrlChange }: { onMapUrlChange: (url: string) => void
         </div>
         <div className="space-y-3">
           {[
-            { key: "high" as const, label: "Severidade Alta", color: "text-red-400" },
-            { key: "medium" as const, label: "Severidade Média", color: "text-amber-400" },
-            { key: "low" as const, label: "Severidade Baixa", color: "text-cyan-400" },
+            {
+              key: "high" as const,
+              label: "Severidade Alta",
+              color: "text-red-400",
+            },
+            {
+              key: "medium" as const,
+              label: "Severidade Média",
+              color: "text-amber-400",
+            },
+            {
+              key: "low" as const,
+              label: "Severidade Baixa",
+              color: "text-cyan-400",
+            },
           ].map(({ key, label, color }) => (
             <div key={key} className="flex items-center justify-between">
               <span className={clsx("text-sm font-mono", color)}>{label}</span>
@@ -595,12 +695,14 @@ function SettingsTab({ onMapUrlChange }: { onMapUrlChange: (url: string) => void
                 type="button"
                 role="switch"
                 aria-checked={notifications[key]}
-                onClick={() => setNotifications((n) => ({ ...n, [key]: !n[key] }))}
+                onClick={() =>
+                  setNotifications((n) => ({ ...n, [key]: !n[key] }))
+                }
                 className={clsx(
                   "w-9 h-5 border transition-colors relative flex items-center px-0.5",
                   notifications[key]
                     ? "bg-primary/15 border-primary/50"
-                    : "bg-muted border-border"
+                    : "bg-muted border-border",
                 )}
               >
                 <div
@@ -608,7 +710,7 @@ function SettingsTab({ onMapUrlChange }: { onMapUrlChange: (url: string) => void
                     "w-3.5 h-3.5 transition-transform",
                     notifications[key]
                       ? "translate-x-4 bg-primary"
-                      : "translate-x-0 bg-muted-foreground/50"
+                      : "translate-x-0 bg-muted-foreground/50",
                   )}
                 />
               </button>
@@ -622,6 +724,21 @@ function SettingsTab({ onMapUrlChange }: { onMapUrlChange: (url: string) => void
 
 // ─── Images Tab ───────────────────────────────────────────────────────────────
 
+type ImageStatus =
+  | "analisando_exif"
+  | "pronta_ia"
+  | "processando_ia"
+  | "analisada"
+  | "sem_gps"
+  | "erro";
+
+interface AIResult {
+  classificacao: "baixa" | "media" | "alta";
+  confianca: number;
+  vegetacaoDetectada: number;
+  areaNaoRocada: number;
+}
+
 interface ImageEntry {
   id: string;
   url: string;
@@ -629,6 +746,36 @@ interface ImageEntry {
   size: number;
   width: number;
   height: number;
+
+  status: ImageStatus;
+
+  latitude?: number;
+  longitude?: number;
+
+  aiResult?: AIResult;
+
+  dataUrl?: string;
+
+  error?: string;
+}
+
+type AlertSeverity = "high" | "medium" | "low";
+type AlertStatus = "ativo" | "resolvido" | "investigando" | "pendente";
+
+interface Alert {
+  id: string;
+  severity: AlertSeverity;
+  title: string;
+  location: string;
+  time: string;
+  status: AlertStatus;
+
+  imageId?: string;
+  latitude?: number;
+  longitude?: number;
+
+  rodovia?: string;
+  confianca?: number;
 }
 
 function formatBytes(bytes: number) {
@@ -677,13 +824,19 @@ function LightboxModal({
       {images.length > 1 && (
         <>
           <button
-            onClick={(e) => { e.stopPropagation(); onPrev(); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onPrev();
+            }}
             className="absolute left-4 text-muted-foreground hover:text-foreground transition-colors p-2 border border-border bg-card/60 backdrop-blur"
           >
             <ChevronLeft size={18} />
           </button>
           <button
-            onClick={(e) => { e.stopPropagation(); onNext(); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onNext();
+            }}
             className="absolute right-4 text-muted-foreground hover:text-foreground transition-colors p-2 border border-border bg-card/60 backdrop-blur"
           >
             <ChevronRight size={18} />
@@ -704,43 +857,380 @@ function LightboxModal({
         <div className="flex items-center gap-4 text-[11px] font-mono text-muted-foreground">
           <span className="text-foreground">{img.name}</span>
           <span>·</span>
-          <span>{img.width} × {img.height}px</span>
+          <span>
+            {img.width} × {img.height}px
+          </span>
           <span>·</span>
           <span>{formatBytes(img.size)}</span>
           <span>·</span>
-          <span>{index + 1} / {images.length}</span>
+          <span>
+            {index + 1} / {images.length}
+          </span>
         </div>
       </div>
     </div>
   );
 }
 
-function ImagesTab() {
-  const [images, setImages] = useState<ImageEntry[]>([]);
+function classificacaoParaSeveridade(
+  classificacao: AIResult["classificacao"],
+): AlertSeverity {
+  if (classificacao === "alta") return "high";
+  if (classificacao === "media") return "medium";
+  return "low";
+}
+
+function tituloDaClassificacao(classificacao: AIResult["classificacao"]) {
+  if (classificacao === "alta") {
+    return "Vegetação crítica detectada";
+  }
+
+  if (classificacao === "media") {
+    return "Vegetação acima do padrão";
+  }
+
+  return "Vegetação dentro do padrão";
+}
+
+// ─── Images Storage Tab ───────────────────────────────────────────────────────────────
+
+const STORAGE_KEYS = {
+  images: "motiva_imagens",
+  analyses: "motiva_analises",
+  alerts: "motiva_alertas",
+  imageSequence: "motiva_image_sequence",
+  alertSequence: "motiva_alert_sequence",
+};
+
+function carregarStorage<T>(key: string, fallback: T): T {
+  try {
+    const data = localStorage.getItem(key);
+
+    if (!data) {
+      return fallback;
+    }
+
+    return JSON.parse(data) as T;
+  } catch (error) {
+    console.error(`Erro ao carregar ${key}:`, error);
+
+    return fallback;
+  }
+}
+
+function salvarStorage<T>(key: string, data: T) {
+  localStorage.setItem(key, JSON.stringify(data));
+}
+
+function gerarIdImagem(): string {
+  const atual = Number(localStorage.getItem(STORAGE_KEYS.imageSequence) || "1");
+
+  localStorage.setItem(STORAGE_KEYS.imageSequence, String(atual + 1));
+
+  return `IMG-${String(atual).padStart(6, "0")}`;
+}
+
+function gerarIdAlerta(): string {
+  const atual = Number(localStorage.getItem(STORAGE_KEYS.alertSequence) || "1");
+
+  localStorage.setItem(STORAGE_KEYS.alertSequence, String(atual + 1));
+
+  return `ALT-${String(atual).padStart(6, "0")}`;
+}
+
+// ─── Resposta Simulada do Modelo ───────────────────────────────────────────────────────────────
+
+function simularAnaliseIA(): AIResult {
+  const resultados: AIResult[] = [
+    {
+      classificacao: "baixa",
+      confianca: 0.94,
+      vegetacaoDetectada: 31,
+      areaNaoRocada: 12,
+    },
+    {
+      classificacao: "media",
+      confianca: 0.88,
+      vegetacaoDetectada: 57,
+      areaNaoRocada: 39,
+    },
+    {
+      classificacao: "alta",
+      confianca: 0.91,
+      vegetacaoDetectada: 82,
+      areaNaoRocada: 68,
+    },
+  ];
+
+  return resultados[Math.floor(Math.random() * resultados.length)];
+}
+
+// ───────────────────────────────────────────────────────────────────────────────────────────────
+
+function arquivoParaDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        resolve(reader.result);
+      } else {
+        reject(new Error("Não foi possível converter a imagem."));
+      }
+    };
+
+    reader.onerror = () => {
+      reject(new Error("Erro ao ler o arquivo da imagem."));
+    };
+
+    reader.readAsDataURL(file);
+  });
+}
+
+function carregarImagensSalvas(): ImageEntry[] {
+  const registros = carregarStorage<any[]>(STORAGE_KEYS.images, []);
+
+  return registros.map((imagem) => ({
+    id: imagem.id,
+    url: imagem.dataUrl,
+    dataUrl: imagem.dataUrl,
+    name: imagem.arquivo,
+    size: imagem.size ?? 0,
+    width: imagem.width ?? 0,
+    height: imagem.height ?? 0,
+    status: imagem.status,
+    latitude: imagem.latitude,
+    longitude: imagem.longitude,
+    aiResult: imagem.aiResult,
+    error: imagem.error,
+  }));
+}
+
+function ImagesTab({
+  onAlertCreated,
+}: {
+  onAlertCreated: (alert: Alert) => void;
+}) {
+  const [images, setImages] = useState<ImageEntry[]>(carregarImagensSalvas);
   const [dragging, setDragging] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const loadFiles = useCallback((files: File[]) => {
-    const imageFiles = files.filter((f) => f.type.startsWith("image/"));
-    imageFiles.forEach((file) => {
+  const loadFiles = useCallback(async (files: File[]) => {
+    const imageFiles = files.filter((file) => file.type.startsWith("image/"));
+
+    for (const file of imageFiles) {
+      const id = gerarIdImagem();
+
       const url = URL.createObjectURL(file);
+
       const img = new Image();
-      img.onload = () => {
+
+      img.onload = async () => {
+        // Primeiro adicionamos a imagem como "analisando"
         setImages((prev) => [
           ...prev,
           {
-            id: `${Date.now()}-${Math.random()}`,
+            id,
             url,
             name: file.name,
             size: file.size,
             width: img.naturalWidth,
             height: img.naturalHeight,
+            status: "analisando_exif",
+          },
+        ]);
+
+        try {
+          // Tenta obter latitude e longitude do EXIF
+          const gps = await exifr.gps(file);
+
+          const latitude = gps?.latitude;
+          const longitude = gps?.longitude;
+
+          if (
+            typeof latitude !== "number" ||
+            typeof longitude !== "number" ||
+            !Number.isFinite(latitude) ||
+            !Number.isFinite(longitude)
+          ) {
+            setImages((prev) =>
+              prev.map((item) =>
+                item.id === id
+                  ? {
+                      ...item,
+                      status: "sem_gps",
+                      error:
+                        "Não foi possível obter latitude e longitude dos metadados EXIF.",
+                    }
+                  : item,
+              ),
+            );
+
+            return;
+          }
+
+          // ============================================================
+          // SALVAR IMAGEM NO BANCO SIMULADO
+          // ============================================================
+
+          const dataUrl = await arquivoParaDataUrl(file);
+
+          const registroImagem = {
+            id,
+            arquivo: file.name,
+            dataUrl,
+            size: file.size,
+            width: img.naturalWidth,
+            height: img.naturalHeight,
+            latitude,
+            longitude,
+            status: "processando_ia",
+            dataUpload: new Date().toISOString(),
+          };
+
+          const imagensSalvas = carregarStorage(STORAGE_KEYS.images, []);
+
+          salvarStorage(STORAGE_KEYS.images, [
+            ...imagensSalvas,
+            registroImagem,
+          ]);
+
+          // ============================================================
+          // ATUALIZAR INTERFACE
+          // ============================================================
+
+          setImages((prev) =>
+            prev.map((item) =>
+              item.id === id
+                ? {
+                    ...item,
+                    status: "processando_ia",
+                    latitude,
+                    longitude,
+                  }
+                : item,
+            ),
+          );
+
+          // Simulação da imagem para a IA
+          setTimeout(() => {
+            const resultado = simularAnaliseIA();
+
+            const imagensAtuais = carregarStorage(STORAGE_KEYS.images, []);
+
+            const imagensAtualizadas = imagensAtuais.map((imagem: any) =>
+              imagem.id === id
+                ? {
+                    ...imagem,
+                    status: "analisada",
+                    aiResult: resultado,
+                  }
+                : imagem,
+            );
+
+            salvarStorage(STORAGE_KEYS.images, imagensAtualizadas);
+
+            const analise = {
+              imageId: id,
+              classificacao: resultado.classificacao,
+              confianca: resultado.confianca,
+              vegetacaoDetectada: resultado.vegetacaoDetectada,
+              areaNaoRocada: resultado.areaNaoRocada,
+              dataAnalise: new Date().toISOString(),
+            };
+
+            // ============================================================
+            // ATUALIZAR A IMAGEM NA INTERFACE
+            // ============================================================
+
+            setImages((prev) =>
+              prev.map((item) =>
+                item.id === id
+                  ? {
+                      ...item,
+                      status: "analisada",
+                      aiResult: resultado,
+                    }
+                  : item,
+              ),
+            );
+
+            const analises = carregarStorage(STORAGE_KEYS.analyses, []);
+
+            salvarStorage(STORAGE_KEYS.analyses, [...analises, analise]);
+
+            // ============================================================
+            // CRIAR ALERTA
+            // ============================================================
+
+            const severity = classificacaoParaSeveridade(
+              resultado.classificacao,
+            );
+
+            const agora = new Date();
+
+            const novoAlerta: Alert = {
+              id: gerarIdAlerta(),
+
+              severity,
+
+              title: tituloDaClassificacao(resultado.classificacao),
+
+              location: `Imagem ${id}`,
+
+              time: agora.toLocaleTimeString("pt-BR", {
+                hour12: false,
+              }),
+
+              status: severity === "low" ? "pendente" : "ativo",
+
+              imageId: id,
+
+              latitude,
+
+              longitude,
+
+              confianca: resultado.confianca,
+            };
+
+            onAlertCreated(novoAlerta);
+          }, 2500);
+        } catch (error) {
+          console.error(`Erro ao ler EXIF da imagem ${id}:`, error);
+
+          setImages((prev) =>
+            prev.map((item) =>
+              item.id === id
+                ? {
+                    ...item,
+                    status: "erro",
+                    error: "Ocorreu um erro ao ler os metadados EXIF.",
+                  }
+                : item,
+            ),
+          );
+        }
+      };
+
+      img.onerror = () => {
+        setImages((prev) => [
+          ...prev,
+          {
+            id,
+            url,
+            name: file.name,
+            size: file.size,
+            width: 0,
+            height: 0,
+            status: "erro",
+            error: "Não foi possível carregar a imagem.",
           },
         ]);
       };
+
       img.src = url;
-    });
+    }
   }, []);
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -756,17 +1246,48 @@ function ImagesTab() {
 
   const removeImage = (id: string) => {
     setImages((prev) => {
-      const entry = prev.find((i) => i.id === id);
-      if (entry) URL.revokeObjectURL(entry.url);
-      return prev.filter((i) => i.id !== id);
+      const entry = prev.find((image) => image.id === id);
+
+      if (entry?.url && entry.url.startsWith("blob:")) {
+        URL.revokeObjectURL(entry.url);
+      }
+
+      return prev.filter((image) => image.id !== id);
     });
+
+    // Remove imagem
+    const imagens = carregarStorage<any[]>(STORAGE_KEYS.images, []);
+
+    salvarStorage(
+      STORAGE_KEYS.images,
+      imagens.filter((imagem) => imagem.id !== id),
+    );
+
+    // Remove análise relacionada
+    const analises = carregarStorage<any[]>(STORAGE_KEYS.analyses, []);
+
+    salvarStorage(
+      STORAGE_KEYS.analyses,
+      analises.filter((analise) => analise.imageId !== id),
+    );
+
+    // Remove alerta gerado pela imagem
+    const alertas = carregarStorage<Alert[]>(STORAGE_KEYS.alerts, []);
+
+    salvarStorage(
+      STORAGE_KEYS.alerts,
+      alertas.filter((alerta) => alerta.imageId !== id),
+    );
+
     setLightboxIndex(null);
   };
 
   const openLightbox = (idx: number) => setLightboxIndex(idx);
   const closeLightbox = () => setLightboxIndex(null);
   const prevImage = () =>
-    setLightboxIndex((i) => (i === null ? null : (i - 1 + images.length) % images.length));
+    setLightboxIndex((i) =>
+      i === null ? null : (i - 1 + images.length) % images.length,
+    );
   const nextImage = () =>
     setLightboxIndex((i) => (i === null ? null : (i + 1) % images.length));
 
@@ -775,7 +1296,10 @@ function ImagesTab() {
       {/* Upload zone */}
       <div className="p-5 pb-0 flex-shrink-0">
         <div
-          onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDragging(true);
+          }}
           onDragLeave={() => setDragging(false)}
           onDrop={handleDrop}
           onClick={() => fileInputRef.current?.click()}
@@ -783,26 +1307,33 @@ function ImagesTab() {
             "border border-dashed transition-all cursor-pointer flex items-center gap-6 px-8 py-6",
             dragging
               ? "border-primary bg-primary/10 scale-[1.005]"
-              : "border-border hover:border-primary/40 hover:bg-primary/[0.03] bg-card"
+              : "border-border hover:border-primary/40 hover:bg-primary/[0.03] bg-card",
           )}
         >
-          <div className={clsx(
-            "w-10 h-10 border flex items-center justify-center flex-shrink-0 transition-colors",
-            dragging ? "border-primary text-primary" : "border-border text-muted-foreground"
-          )}>
+          <div
+            className={clsx(
+              "w-10 h-10 border flex items-center justify-center flex-shrink-0 transition-colors",
+              dragging
+                ? "border-primary text-primary"
+                : "border-border text-muted-foreground",
+            )}
+          >
             <Upload size={18} />
           </div>
           <div>
             <div className="text-sm font-mono text-foreground">
-              {dragging ? "Solte as imagens aqui" : "Arraste imagens ou clique para selecionar"}
+              {dragging
+                ? "Solte as imagens aqui"
+                : "Arraste imagens ou clique para selecionar"}
             </div>
             <div className="text-[11px] font-mono text-muted-foreground mt-0.5">
-              PNG, JPG, GIF, WebP, SVG — múltiplos arquivos suportados
+              JPG, PNG, WebP — a imagem precisa conter GPS nos metadados EXIF
             </div>
           </div>
           {images.length > 0 && (
             <div className="ml-auto text-[11px] font-mono text-muted-foreground/60 flex-shrink-0">
-              {images.length} imagem{images.length !== 1 ? "ns" : ""} carregada{images.length !== 1 ? "s" : ""}
+              {images.length} imagem{images.length !== 1 ? "ns" : ""} carregada
+              {images.length !== 1 ? "s" : ""}
             </div>
           )}
         </div>
@@ -830,7 +1361,9 @@ function ImagesTab() {
             <ImageIcon className="text-muted-foreground/40" size={28} />
           </div>
           <div>
-            <p className="text-muted-foreground font-mono text-sm">Nenhuma imagem carregada</p>
+            <p className="text-muted-foreground font-mono text-sm">
+              Nenhuma imagem carregada
+            </p>
             <p className="text-muted-foreground/50 font-mono text-xs mt-1">
               Use a zona acima para adicionar imagens ao preview
             </p>
@@ -865,17 +1398,84 @@ function ImagesTab() {
 
                 {/* Meta */}
                 <div className="px-2.5 py-2 flex flex-col gap-0.5">
-                  <div className="text-[11px] font-mono text-foreground truncate" title={img.name}>
+                  <div
+                    className="text-[11px] font-mono text-foreground truncate"
+                    title={img.name}
+                  >
                     {img.name}
                   </div>
                   <div className="text-[10px] font-mono text-muted-foreground">
                     {img.width}×{img.height} · {formatBytes(img.size)}
                   </div>
+                  <div className="text-[10px] font-mono mt-1">
+                    {img.status === "analisando_exif" && (
+                      <span className="text-amber-400">🔄 Lendo EXIF...</span>
+                    )}
+
+                    {img.status === "processando_ia" && (
+                      <span className="text-amber-400">
+                        🔄 IA analisando...
+                      </span>
+                    )}
+
+                    {img.status === "analisada" && (
+                      <span className="text-green-400">
+                        ✓ Análise concluída
+                      </span>
+                    )}
+
+                    {img.status === "pronta_ia" && (
+                      <span className="text-green-400">
+                        ✓ GPS encontrado · Pronta para IA
+                      </span>
+                    )}
+
+                    {img.status === "sem_gps" && (
+                      <span className="text-red-400">⚠ GPS não encontrado</span>
+                    )}
+
+                    {img.status === "erro" && (
+                      <span className="text-red-400">
+                        ✕ Erro no processamento
+                      </span>
+                    )}
+                  </div>
+                  {img.latitude !== undefined &&
+                    img.longitude !== undefined && (
+                      <div className="text-[10px] font-mono text-muted-foreground mt-1">
+                        Lat: {img.latitude.toFixed(6)}
+                        <br />
+                        Lon: {img.longitude.toFixed(6)}
+                      </div>
+                    )}
+
+                  {img.aiResult && (
+                    <div className="text-[10px] font-mono mt-1">
+                      <div
+                        className={clsx(
+                          img.aiResult.classificacao === "alta"
+                            ? "text-red-400"
+                            : img.aiResult.classificacao === "media"
+                              ? "text-amber-400"
+                              : "text-green-400",
+                        )}
+                      >
+                        IA: {img.aiResult.classificacao.toUpperCase()}
+                      </div>
+
+                      <div className="text-muted-foreground">
+                        Confiança: {(img.aiResult.confianca * 100).toFixed(0)}%
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Remove button */}
                 <button
-                  onClick={(e) => { e.stopPropagation(); removeImage(img.id); }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removeImage(img.id);
+                  }}
                   className="absolute top-1.5 right-1.5 w-6 h-6 bg-black/60 backdrop-blur border border-white/10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500/60"
                   title="Remover"
                 >
@@ -895,8 +1495,20 @@ function ImagesTab() {
             <div className="mt-4 flex justify-end">
               <button
                 onClick={() => {
-                  images.forEach((i) => URL.revokeObjectURL(i.url));
+                  images.forEach((image) => {
+                    if (image.url && image.url.startsWith("blob:")) {
+                      URL.revokeObjectURL(image.url);
+                    }
+                  });
+
                   setImages([]);
+                  setLightboxIndex(null);
+
+                  localStorage.removeItem(STORAGE_KEYS.images);
+
+                  localStorage.removeItem(STORAGE_KEYS.analyses);
+
+                  localStorage.removeItem(STORAGE_KEYS.alerts);
                 }}
                 className="text-[11px] font-mono text-muted-foreground hover:text-destructive transition-colors border border-border hover:border-destructive/30 px-3 py-1.5"
               >
@@ -926,11 +1538,41 @@ function ImagesTab() {
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>("mapa");
   const [mapUrl, setMapUrl] = useState("");
+  const [alerts, setAlerts] = useState<Alert[]>(() =>
+    carregarStorage<Alert[]>(STORAGE_KEYS.alerts, []),
+  );
   const time = useCurrentTime();
 
-  const activeAlerts = alertsData.filter(
-    (a) => a.status === "ativo" && a.severity === "high"
+  const activeAlerts = alerts.filter(
+    (a) => a.status === "ativo" && a.severity === "high",
   ).length;
+
+  const adicionarAlerta = (novoAlerta: Alert) => {
+    setAlerts((prev) => {
+      const atualizados = [novoAlerta, ...prev];
+
+      salvarStorage(STORAGE_KEYS.alerts, atualizados);
+
+      return atualizados;
+    });
+  };
+
+  const atualizarStatusAlerta = (id: string, status: AlertStatus) => {
+    setAlerts((prev) => {
+      const atualizados = prev.map((alert) =>
+        alert.id === id
+          ? {
+              ...alert,
+              status,
+            }
+          : alert,
+      );
+
+      salvarStorage(STORAGE_KEYS.alerts, atualizados);
+
+      return atualizados;
+    });
+  };
 
   const handleMapChange = (url: string) => {
     setMapUrl(url);
@@ -961,7 +1603,7 @@ export default function App() {
                   "flex items-center gap-2 px-4 h-12 text-[11px] font-mono uppercase tracking-wider border-b-2 transition-colors",
                   activeTab === id
                     ? "border-primary text-primary"
-                    : "border-transparent text-muted-foreground hover:text-foreground"
+                    : "border-transparent text-muted-foreground hover:text-foreground",
                 )}
               >
                 <Icon size={12} />
@@ -1007,19 +1649,48 @@ export default function App() {
 
       {/* ── Main ───────────────────────────────────────────────────────── */}
       <main className="flex-1 overflow-hidden relative">
-        <div className={clsx("absolute inset-0", activeTab !== "mapa" && "invisible pointer-events-none")}>
-          <MapTab mapUrl={mapUrl} onMapUrlChange={handleMapChange} />
+        <div
+          className={clsx(
+            "absolute inset-0",
+            activeTab !== "mapa" && "invisible pointer-events-none",
+          )}
+        >
+          <MapTab />
         </div>
-        <div className={clsx("absolute inset-0 overflow-auto", activeTab !== "analise" && "hidden")}>
+        <div
+          className={clsx(
+            "absolute inset-0 overflow-auto",
+            activeTab !== "analise" && "hidden",
+          )}
+        >
           <AnalyticsTab />
         </div>
-        <div className={clsx("absolute inset-0 overflow-auto", activeTab !== "alertas" && "hidden")}>
-          <AlertsTab />
+        <div
+          className={clsx(
+            "absolute inset-0 overflow-auto",
+            activeTab !== "alertas" && "hidden",
+          )}
+        >
+          <AlertsTab alerts={alerts} onUpdateStatus={atualizarStatusAlerta} />
         </div>
-        <div className={clsx("absolute inset-0 overflow-hidden", activeTab !== "imagens" && "hidden")}>
-          <ImagesTab />
+        <div
+          className={clsx(
+            "absolute inset-0 overflow-hidden",
+            activeTab !== "imagens" && "hidden",
+          )}
+        >
+          <ImagesTab
+            onAlertCreated={(novoAlerta) => {
+              adicionarAlerta(novoAlerta);
+            }}
+          />
         </div>
-        <div className={clsx("absolute inset-0 overflow-auto", activeTab !== "configuracoes" && "hidden")}>
+        <div
+          className={clsx(
+            "absolute inset-0 overflow-auto",
+            activeTab !== "configuracoes" && "hidden",
+          )}
+        >
           <SettingsTab onMapUrlChange={handleMapChange} />
         </div>
       </main>
@@ -1034,11 +1705,17 @@ export default function App() {
         {activeAlerts > 0 && (
           <div className="flex items-center gap-1.5 text-[10px] font-mono text-red-400/80">
             <AlertTriangle size={10} />
-            {activeAlerts} alerta{activeAlerts > 1 ? "s" : ""} crítico{activeAlerts > 1 ? "s" : ""} ativo{activeAlerts > 1 ? "s" : ""}
+            {activeAlerts} alerta{activeAlerts > 1 ? "s" : ""} crítico
+            {activeAlerts > 1 ? "s" : ""} ativo{activeAlerts > 1 ? "s" : ""}
           </div>
         )}
         <div className="text-[10px] font-mono text-muted-foreground/40 tabular-nums hidden sm:block">
-          {time.toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "short", year: "numeric" })}
+          {time.toLocaleDateString("pt-BR", {
+            weekday: "short",
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+          })}
         </div>
       </footer>
     </div>
