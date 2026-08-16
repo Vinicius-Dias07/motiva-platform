@@ -1,0 +1,5 @@
+inference_sdk
+pillow
+python-dotenv
+supervision
+numpy
