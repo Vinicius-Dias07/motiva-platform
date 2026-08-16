@@ -1,0 +1,7 @@
+.venv
+.env
+__pycache__/
+*.pyc
+mask_output.png
+CLAUDE.md
+image.png
