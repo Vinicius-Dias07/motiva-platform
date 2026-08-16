@@ -1,7 +1,13 @@
 .venv
+.venv-model/
 .env
 __pycache__/
 *.pyc
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
 mask_output.png
 CLAUDE.md
 image.png
+.codex-remote-attachments/
