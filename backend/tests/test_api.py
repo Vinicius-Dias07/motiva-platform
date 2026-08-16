@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from types import SimpleNamespace
 
 import pytest
+from app.config import Settings
 from app.domain import DatabaseUnavailableError, DetectionRecord, StoredAlert
 from app.main import create_app, get_repository, get_segmenter
 from app.model_gateway import ModelGatewayTimeoutError
@@ -58,6 +59,12 @@ def model_prediction(class_name: str, confidence: float) -> dict:
 @pytest.fixture
 def repository() -> FakeRepository:
     return FakeRepository()
+
+
+@pytest.fixture(autouse=True)
+def isolated_settings(monkeypatch: pytest.MonkeyPatch) -> None:
+    settings = Settings(_env_file=None)
+    monkeypatch.setattr("app.main.get_settings", lambda: settings)
 
 
 @pytest.fixture

@@ -1,5 +1,6 @@
 import asyncio
 import json
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -40,41 +41,28 @@ class ModelWorkerClient:
         self._python_executable = settings.resolved_model_python_executable
         self._timeout = settings.model_worker_timeout_seconds
         self._worker_path = Path(__file__).resolve().parent.parent / "model_worker.py"
-        self._process: asyncio.subprocess.Process | None = None
+        self._process: subprocess.Popen[str] | None = None
         self._lock = asyncio.Lock()
 
     async def close(self) -> None:
-        if self._process is None:
-            return
-        if self._process.returncode is None:
-            self._process.terminate()
-            try:
-                await asyncio.wait_for(self._process.wait(), timeout=5)
-            except TimeoutError:
-                self._process.kill()
-                await self._process.wait()
+        process = self._process
         self._process = None
+        if process is None:
+            return
+        await asyncio.to_thread(self._stop_process, process)
 
     async def segment(self, image_base64: str) -> ModelSegmentationResult:
         async with self._lock:
-            process = await self._ensure_started()
-            request_id = str(uuid4())
-            request = json.dumps(
-                {"request_id": request_id, "image": image_base64},
-                ensure_ascii=True,
-                separators=(",", ":"),
-            )
-            assert process.stdin is not None
-            process.stdin.write((request + "\n").encode("utf-8"))
-            await process.stdin.drain()
-
             try:
                 response = await asyncio.wait_for(
-                    self._read_response(process, request_id), timeout=self._timeout
+                    asyncio.to_thread(self._exchange, image_base64), timeout=self._timeout
                 )
             except TimeoutError as exc:
                 await self.close()
                 raise ModelGatewayTimeoutError("Worker do modelo excedeu o tempo limite") from exc
+            except (BrokenPipeError, OSError) as exc:
+                await self.close()
+                raise ModelGatewayUnavailableError("Worker do modelo indisponível") from exc
 
             if response.get("ok") is True:
                 predictions = response.get("raw_predictions")
@@ -93,8 +81,21 @@ class ModelWorkerClient:
                 raise ModelGatewayUpstreamError("Falha ao processar a imagem no Roboflow")
             raise ModelGatewayUnavailableError("Worker do modelo falhou")
 
-    async def _ensure_started(self) -> asyncio.subprocess.Process:
-        if self._process is not None and self._process.returncode is None:
+    def _exchange(self, image_base64: str) -> dict[str, Any]:
+        process = self._ensure_started()
+        request_id = str(uuid4())
+        request = json.dumps(
+            {"request_id": request_id, "image": image_base64},
+            ensure_ascii=True,
+            separators=(",", ":"),
+        )
+        assert process.stdin is not None
+        process.stdin.write(request + "\n")
+        process.stdin.flush()
+        return self._read_response(process, request_id)
+
+    def _ensure_started(self) -> subprocess.Popen[str]:
+        if self._process is not None and self._process.poll() is None:
             return self._process
         if not self._python_executable.is_file():
             raise ModelGatewayConfigurationError(
@@ -103,27 +104,29 @@ class ModelWorkerClient:
         if not self._worker_path.is_file():
             raise ModelGatewayConfigurationError("Executável do worker do modelo ausente")
 
-        self._process = await asyncio.create_subprocess_exec(
-            str(self._python_executable),
-            str(self._worker_path),
-            stdin=asyncio.subprocess.PIPE,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.DEVNULL,
+        self._process = subprocess.Popen(
+            [str(self._python_executable), str(self._worker_path)],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
             cwd=str(self._worker_path.parent),
-            limit=16 * 1024 * 1024,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            bufsize=1,
         )
         return self._process
 
-    async def _read_response(
-        self, process: asyncio.subprocess.Process, request_id: str
-    ) -> dict[str, Any]:
+    def _read_response(self, process: subprocess.Popen[str], request_id: str) -> dict[str, Any]:
         assert process.stdout is not None
         while True:
-            line = await process.stdout.readline()
+            line = process.stdout.readline()
             if not line:
-                await self.close()
+                if self._process is process:
+                    self._process = None
+                self._stop_process(process)
                 raise ModelGatewayUnavailableError("Worker do modelo foi encerrado inesperadamente")
-            text = line.decode("utf-8", errors="replace").rstrip("\r\n")
+            text = line.rstrip("\r\n")
             if not text.startswith(PROTOCOL_PREFIX):
                 continue
             try:
@@ -132,3 +135,14 @@ class ModelWorkerClient:
                 raise ModelGatewayUnavailableError("Resposta inválida do worker do modelo") from exc
             if response.get("request_id") == request_id:
                 return response
+
+    @staticmethod
+    def _stop_process(process: subprocess.Popen[str]) -> None:
+        if process.poll() is not None:
+            return
+        process.terminate()
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait()
