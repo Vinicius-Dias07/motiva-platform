@@ -1,81 +1,163 @@
 Instruções de requerimentos e uso do código:
 
-Python
+# ========================
 
-É necessário ter o Python instalado.
+## Requisitos
+
+É necessário ter instalado:
+
+- Python
+- Node.js
+- npm
+
+# ========================
+
+## Python
+
+O Python é utilizado para o gerador e preparação dos mapas.
 
 Bibliotecas utilizadas:
 
+```bash
 pip install folium
 pip install geopandas
+pip install shapely
+```
 
-O projeto também utiliza:
+O projeto também utiliza bibliotecas nativas do Python, como:
 
 - json
 - pathlib
-- shapely
 
 # ========================
 
-Como executar o gerador de mapas
+## Como executar o gerador de mapas
 
 Entre pelo terminal na pasta:
 
+```bash
 cd mapas
+```
 
 Execute:
 
+```bash
 python gerador_mapa_rodovias.py
+```
 
-O programa irá gerar:
+O programa gera:
 
+```text
 mapa_rodovias.html
+```
+
+O gerador é utilizado para preparar e organizar os dados geográficos do projeto.
 
 # ========================
 
-Dashboard
+## Dashboard
 
-O projeto também possui uma interface desenvolvida com Figma Make, localizada em:
+O projeto possui uma interface desenvolvida com React e Vite, localizada em:
 
+```text
 dashboard_figma/
+```
 
-O dashboard possui atualmente as seguintes áreas:
+O mapa principal do dashboard atualmente utiliza React-Leaflet.
 
-- Mapa
-- Análise
-- Alertas
-- Imagens
-- Configurações
+Os arquivos GeoJSON utilizados pelo mapa ficam em:
 
-O mapa é carregado automaticamente ao iniciar o dashboard.
+```text
+dashboard_figma/public/geojson/
+```
+
+Atualmente são utilizados:
+
+- autoban.geojson
+- rodoanel_rocada.geojson
+- via_dutra.geojson
 
 # ========================
 
-Executar o dashboard
+## Dependências do Dashboard
+
+As dependências do dashboard são instaladas dentro da pasta:
+
+```bash
+cd dashboard_figma
+```
+
+Para instalar todas as dependências do projeto:
+
+```bash
+npm install
+```
+
+Entre as principais bibliotecas utilizadas atualmente estão:
+
+```text
+exifr
+leaflet
+react-leaflet
+```
+
+Para suporte ao TypeScript com Leaflet também é utilizado:
+
+```text
+@types/leaflet
+```
+
+Essas dependências já estão registradas no `package.json`, portanto normalmente basta executar:
+
+```bash
+npm install
+```
+
+em uma nova máquina.
+
+Caso seja necessário instalá-las manualmente:
+
+```bash
+npm install exifr
+npm install leaflet@1.9.4 react-leaflet@4
+npm install -D @types/leaflet
+```
+
+# ========================
+
+## Executar o Dashboard
 
 Entre na pasta:
 
+```bash
 cd dashboard_figma
+```
 
 Instale as dependências:
 
+```bash
 npm install
+```
 
 Execute o projeto:
 
+```bash
 npm run dev
+```
 
 O Vite fornecerá o endereço local para acessar o dashboard pelo navegador.
 
 # ========================
 
-Upload e análise de imagens
+## Upload e análise de imagens
 
 O dashboard permite o upload de imagens de rodovias e vegetação.
 
 Cada imagem recebe um identificador, por exemplo:
 
+```text
 IMG-000001
+```
 
 O sistema verifica os metadados EXIF da imagem e procura latitude e longitude.
 
@@ -88,11 +170,13 @@ Caso a imagem possua GPS válido:
 
 - A imagem é aceita.
 - Latitude e longitude são armazenadas.
-- A imagem é enviada para a etapa de análise simulada.
+- A imagem segue para a análise simulada.
+
+A leitura dos dados GPS é realizada utilizando a biblioteca `exifr`.
 
 # ========================
 
-IA simulada
+## IA simulada
 
 A IA utilizada atualmente é apenas uma simulação para testes.
 
@@ -112,9 +196,9 @@ A IA real será integrada posteriormente ao projeto.
 
 # ========================
 
-Banco de dados provisório
+## Banco de dados provisório
 
-Enquanto o banco de dados real está sendo desenvolvido, o projeto utiliza o localStorage do navegador como armazenamento provisório.
+Enquanto o banco de dados real está sendo desenvolvido, o projeto utiliza o `localStorage` do navegador como armazenamento provisório.
 
 São armazenadas informações separadas para:
 
@@ -128,9 +212,7 @@ Posteriormente, ele será substituído pelo banco de dados definitivo do projeto
 
 # ========================
 
-Alertas
-
-Após a análise simulada, a imagem pode gerar um alerta.
+## Alertas
 
 Cada alerta possui informações como:
 
@@ -142,28 +224,27 @@ Cada alerta possui informações como:
 - Longitude
 - Confiança da análise
 
-Os alertas também podem ter seu status alterado no dashboard.
-
 # ========================
 
-Estado atual do projeto
+## Mapa
 
-Atualmente já estão funcionando:
+O mapa do dashboard utiliza:
 
-- Mapa de múltiplas rodovias
-- Dashboard em React/Vite
-- Upload de imagens
-- Leitura de GPS por EXIF
-- Validação das coordenadas
-- Geração de ID das imagens
-- IA simulada
-- Geração de análises
-- Geração de alertas
-- Armazenamento provisório no localStorage
+- React
+- Leaflet
+- React-Leaflet
+- GeoJSON
 
-Em desenvolvimento:
+As rodovias são carregadas diretamente pelos arquivos GeoJSON disponíveis em:
 
-- Banco de dados definitivo
-- Modelo de IA real
-- Integração dos alertas com o mapa
-- Outras funcionalidades de monitoramento
+```text
+dashboard_figma/public/geojson/
+```
+
+Atualmente estão disponíveis:
+
+- Rodoanel Oeste
+- Via Dutra
+- AutoBAn
+
+# ========================

@@ -1,3 +1,4 @@
-@import './fonts.css';
-@import './tailwind.css';
-@import './theme.css';
+@import "./fonts.css";
+@import "./tailwind.css";
+@import "./theme.css";
+@import "leaflet/dist/leaflet.css";
