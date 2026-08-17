@@ -1,6 +1,9 @@
 .venv
 .venv-model/
 .env
+.env.*
+!.env.example
+!**/.env.example
 __pycache__/
 *.pyc
 .pytest_cache/
@@ -11,3 +14,18 @@ mask_output.png
 CLAUDE.md
 image.png
 .codex-remote-attachments/
+
+# Dependências
+node_modules/
+
+# Builds
+dist/
+build/
+
+# Cache
+.vite/
+.cache/
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
