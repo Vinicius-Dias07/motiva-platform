@@ -5,3 +5,22 @@ __pycache__/
 mask_output.png
 CLAUDE.md
 image.png
+
+# Dependências
+node_modules/
+
+# Builds
+dist/
+build/
+
+# Cache
+.vite/
+.cache/
+
+# Variáveis de ambiente
+.env
+.env.*
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
