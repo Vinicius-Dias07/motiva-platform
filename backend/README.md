@@ -186,8 +186,18 @@ No Windows, use o comando testado abaixo:
 & '.\.venv\Scripts\python.exe' -m uvicorn app.main:app `
   --app-dir backend `
   --port 8000 `
-  --reload
+  --reload `
+  --loop asyncio:SelectorEventLoop
 ```
+
+O `--loop asyncio:SelectorEventLoop` é obrigatório sempre que a API rodar sem
+`--reload` (por exemplo em smoke tests manuais ou em produção). Sem essa flag,
+no Windows o uvicorn usa por padrão o `ProactorEventLoop`, que o pool
+assíncrono do `psycopg` não suporta — a API sobe, mas `/health` e qualquer
+endpoint que use o banco falham com "PostgreSQL indisponível" mesmo com a
+`DATABASE_URL` correta. Com `--reload` isso não aparece porque o modo reload
+já roda o worker real num subprocesso, que por acaso usa `SelectorEventLoop`
+— não conte com essa coincidência fora do dev local.
 
 Endereços locais:
 
