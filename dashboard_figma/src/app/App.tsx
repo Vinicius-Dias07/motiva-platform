@@ -1,5 +1,14 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import exifr from "exifr";
+import type {
+  Alert,
+  AlertSeverity,
+  AlertStatus,
+  AIResult,
+  ImageEntry,
+  ImageStatus,
+} from "./types";
+import MapView, { MapViewHandle } from "./components/MapView";
 import {
   Globe,
   BarChart2,
@@ -168,14 +177,18 @@ function StatTile({
 
 // ─── Map Tab ──────────────────────────────────────────────────────────────────
 
-function MapTab() {
+function MapTab({
+  alerts,
+  images,
+  mapRef,
+}: {
+  alerts: Alert[];
+  images: ImageEntry[];
+  mapRef: React.RefObject<MapViewHandle | null>;
+}) {
   return (
     <div className="relative w-full h-full overflow-hidden">
-      <iframe
-        src="/mapa_rodovias.html"
-        className="w-full h-full border-0"
-        title="Mapa de Rodovias Motiva"
-      />
+      <MapView ref={mapRef} alerts={alerts} images={images} />
 
       <div className="absolute bottom-3 left-3 bg-card/80 backdrop-blur border border-border px-3 py-2">
         <div className="flex items-center gap-2 text-primary text-[11px] font-mono">
@@ -373,13 +386,18 @@ function AnalyticsTab() {
 }
 
 // ─── Alerts Tab ───────────────────────────────────────────────────────────────
+// ─── Alerts Tab ───────────────────────────────────────────────────────────────
 
 function AlertsTab({
   alerts,
   onUpdateStatus,
+  onViewOnMap,
+  onClearAll,
 }: {
   alerts: Alert[];
   onUpdateStatus: (id: string, status: AlertStatus) => void;
+  onViewOnMap: (alert: Alert) => void;
+  onClearAll: () => void;
 }) {
   const [filter, setFilter] = useState<"todos" | "high" | "medium" | "low">(
     "todos",
@@ -388,148 +406,235 @@ function AlertsTab({
   const filtered = alerts.filter(
     (a) => filter === "todos" || a.severity === filter,
   );
+
   const activeHigh = alerts.filter(
     (a) => a.severity === "high" && a.status === "ativo",
   ).length;
+
   const activeMed = alerts.filter(
     (a) => a.severity === "medium" && a.status === "ativo",
   ).length;
 
   return (
     <div className="p-5 space-y-5 h-full overflow-auto">
+      {/* ── Resumo ─────────────────────────────────────────────── */}
       <div className="grid grid-cols-3 gap-3">
         <div className="bg-red-500/5 border border-red-500/20 p-4">
           <div className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest mb-2">
             Críticos Ativos
           </div>
+
           <div className="text-3xl font-mono text-red-400 tabular-nums">
             {activeHigh}
           </div>
         </div>
+
         <div className="bg-amber-500/5 border border-amber-500/20 p-4">
           <div className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest mb-2">
             Médios Ativos
           </div>
+
           <div className="text-3xl font-mono text-amber-400 tabular-nums">
             {activeMed}
           </div>
         </div>
+
         <div className="bg-card border border-border p-4">
           <div className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest mb-2">
             Total Hoje
           </div>
+
           <div className="text-3xl font-mono text-foreground tabular-nums">
             {alerts.length}
           </div>
         </div>
       </div>
 
-      <div className="flex gap-2 flex-wrap">
-        {(["todos", "high", "medium", "low"] as const).map((f) => (
-          <button
-            key={f}
-            onClick={() => setFilter(f)}
-            className={clsx(
-              "px-3 py-1.5 text-[10px] font-mono uppercase tracking-widest border transition-colors",
-              filter === f
-                ? "border-primary bg-primary/10 text-primary"
-                : "border-border text-muted-foreground hover:text-foreground hover:border-border/60",
-            )}
-          >
-            {f === "todos"
-              ? "Todos"
-              : f === "high"
-                ? "Alto"
-                : f === "medium"
-                  ? "Médio"
-                  : "Baixo"}
-          </button>
-        ))}
-      </div>
-
-      <div className="space-y-2">
-        {filtered.map((alert) => {
-          const sev =
-            severityConfig[alert.severity as keyof typeof severityConfig];
-          const sts = statusConfig[alert.status as keyof typeof statusConfig];
-          return (
-            <div
-              key={alert.id}
+      {/* ── Filtros ────────────────────────────────────────────── */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex gap-2 flex-wrap">
+          {(["todos", "high", "medium", "low"] as const).map((f) => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
               className={clsx(
-                "border p-4 transition-colors hover:bg-white/[0.015] cursor-default",
-                sev.bg,
+                "px-3 py-1.5 text-[10px] font-mono uppercase tracking-widest border transition-colors",
+                filter === f
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-border text-muted-foreground hover:text-foreground hover:border-border/60",
               )}
             >
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex items-start gap-3 min-w-0">
-                  <span
-                    className={clsx(
-                      "w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0",
-                      sev.dot,
-                    )}
-                  />
-                  <div className="min-w-0">
-                    <div className="text-sm font-sans text-foreground leading-snug">
-                      {alert.title}
-                    </div>
-                    <div className="text-[11px] font-mono text-muted-foreground mt-0.5">
-                      {alert.location}
-                      {alert.imageId && (
-                        <div className="text-[10px] font-mono text-muted-foreground/60 mt-1">
-                          Origem: {alert.imageId}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                <div className="flex-shrink-0 text-right">
-                  <div className={clsx("text-xs font-mono", sts.color)}>
-                    {sts.label}
-                  </div>
-                  <div className="text-[11px] font-mono text-muted-foreground mt-0.5 tabular-nums">
-                    {alert.time}
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 mt-2 ml-4">
-                <span className="text-[10px] font-mono text-muted-foreground/50">
-                  {alert.id}
-                </span>
-                <span className={clsx("text-[10px] font-mono", sev.color)}>
-                  · {sev.label}
-                </span>
-              </div>
-              <div className="flex items-center gap-2 mt-3 ml-4">
-                {alert.status === "ativo" && (
-                  <button
-                    onClick={() => onUpdateStatus(alert.id, "investigando")}
-                    className="px-2.5 py-1.5 text-[10px] font-mono border border-amber-500/30 text-amber-400 hover:bg-amber-500/10 transition-colors"
-                  >
-                    Investigar
-                  </button>
-                )}
+              {f === "todos"
+                ? "Todos"
+                : f === "high"
+                  ? "Alto"
+                  : f === "medium"
+                    ? "Médio"
+                    : "Baixo"}
+            </button>
+          ))}
+        </div>
 
-                {alert.status === "investigando" && (
-                  <button
-                    onClick={() => onUpdateStatus(alert.id, "resolvido")}
-                    className="px-2.5 py-1.5 text-[10px] font-mono border border-green-500/30 text-green-400 hover:bg-green-500/10 transition-colors"
-                  >
-                    Resolver
-                  </button>
-                )}
+        <button
+          onClick={() => {
+            if (alerts.length === 0) return;
 
-                {alert.status === "pendente" && (
-                  <button
-                    onClick={() => onUpdateStatus(alert.id, "ativo")}
-                    className="px-2.5 py-1.5 text-[10px] font-mono border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors"
-                  >
-                    Ativar
-                  </button>
-                )}
-              </div>
+            const confirmar = window.confirm(
+              "Tem certeza que deseja limpar todos os alertas?",
+            );
+
+            if (confirmar) {
+              onClearAll();
+            }
+          }}
+          disabled={alerts.length === 0}
+          className={clsx(
+            "px-3 py-1.5 text-[10px] font-mono uppercase tracking-widest border transition-colors",
+            alerts.length > 0
+              ? "border-red-500/30 text-red-400 hover:bg-red-500/10"
+              : "border-border text-muted-foreground/30 cursor-not-allowed",
+          )}
+        >
+          Limpar alertas
+        </button>
+      </div>
+
+      {/* ── Lista de alertas ───────────────────────────────────── */}
+      <div className="space-y-2">
+        {filtered.length === 0 ? (
+          <div className="border border-border bg-card p-8 text-center">
+            <div className="text-sm font-mono text-muted-foreground">
+              Nenhum alerta registrado
             </div>
-          );
-        })}
+
+            <div className="text-[10px] font-mono text-muted-foreground/50 mt-1">
+              Os alertas gerados pelas análises aparecerão aqui.
+            </div>
+          </div>
+        ) : (
+          filtered.map((alert) => {
+            const sev =
+              severityConfig[alert.severity as keyof typeof severityConfig];
+
+            const sts = statusConfig[alert.status as keyof typeof statusConfig];
+
+            const possuiCoordenadas =
+              typeof alert.latitude === "number" &&
+              typeof alert.longitude === "number";
+
+            return (
+              <div
+                key={alert.id}
+                className={clsx(
+                  "border p-4 transition-colors hover:bg-white/[0.015] cursor-default",
+                  sev.bg,
+                )}
+              >
+                {/* Cabeçalho do alerta */}
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-start gap-3 min-w-0">
+                    <span
+                      className={clsx(
+                        "w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0",
+                        sev.dot,
+                      )}
+                    />
+
+                    <div className="min-w-0">
+                      <div className="text-sm font-sans text-foreground leading-snug">
+                        {alert.title}
+                      </div>
+
+                      <div className="text-[11px] font-mono text-muted-foreground mt-0.5">
+                        {alert.location}
+
+                        {alert.imageId && (
+                          <div className="text-[10px] font-mono text-muted-foreground/60 mt-1">
+                            Origem: {alert.imageId}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex-shrink-0 text-right">
+                    <div className={clsx("text-xs font-mono", sts.color)}>
+                      {sts.label}
+                    </div>
+
+                    <div className="text-[11px] font-mono text-muted-foreground mt-0.5 tabular-nums">
+                      {alert.time}
+                    </div>
+                  </div>
+                </div>
+
+                {/* ID e severidade */}
+                <div className="flex items-center gap-2 mt-2 ml-4">
+                  <span className="text-[10px] font-mono text-muted-foreground/50">
+                    {alert.id}
+                  </span>
+
+                  <span className={clsx("text-[10px] font-mono", sev.color)}>
+                    · {sev.label}
+                  </span>
+
+                  {alert.confianca !== undefined && (
+                    <span className="text-[10px] font-mono text-muted-foreground/50">
+                      · IA {(alert.confianca * 100).toFixed(0)}%
+                    </span>
+                  )}
+                </div>
+
+                {/* Ações */}
+                <div className="flex items-center gap-2 mt-3 ml-4 flex-wrap">
+                  {alert.status === "ativo" && (
+                    <button
+                      onClick={() => onUpdateStatus(alert.id, "investigando")}
+                      className="px-2.5 py-1.5 text-[10px] font-mono border border-amber-500/30 text-amber-400 hover:bg-amber-500/10 transition-colors"
+                    >
+                      Investigar
+                    </button>
+                  )}
+
+                  {alert.status === "investigando" && (
+                    <button
+                      onClick={() => onUpdateStatus(alert.id, "resolvido")}
+                      className="px-2.5 py-1.5 text-[10px] font-mono border border-green-500/30 text-green-400 hover:bg-green-500/10 transition-colors"
+                    >
+                      Resolver
+                    </button>
+                  )}
+
+                  {alert.status === "pendente" && (
+                    <button
+                      onClick={() => onUpdateStatus(alert.id, "ativo")}
+                      className="px-2.5 py-1.5 text-[10px] font-mono border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors"
+                    >
+                      Ativar
+                    </button>
+                  )}
+
+                  {possuiCoordenadas && (
+                    <button
+                      onClick={() => onViewOnMap(alert)}
+                      className="px-2.5 py-1.5 text-[10px] font-mono border border-primary/30 text-primary hover:bg-primary/10 transition-colors"
+                    >
+                      Ver no mapa
+                    </button>
+                  )}
+                </div>
+
+                {/* Coordenadas */}
+                {possuiCoordenadas && (
+                  <div className="mt-3 ml-4 text-[10px] font-mono text-muted-foreground/50">
+                    Lat: {alert.latitude!.toFixed(6)} · Lon:{" "}
+                    {alert.longitude!.toFixed(6)}
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
       </div>
     </div>
   );
@@ -723,60 +828,6 @@ function SettingsTab({
 }
 
 // ─── Images Tab ───────────────────────────────────────────────────────────────
-
-type ImageStatus =
-  | "analisando_exif"
-  | "pronta_ia"
-  | "processando_ia"
-  | "analisada"
-  | "sem_gps"
-  | "erro";
-
-interface AIResult {
-  classificacao: "baixa" | "media" | "alta";
-  confianca: number;
-  vegetacaoDetectada: number;
-  areaNaoRocada: number;
-}
-
-interface ImageEntry {
-  id: string;
-  url: string;
-  name: string;
-  size: number;
-  width: number;
-  height: number;
-
-  status: ImageStatus;
-
-  latitude?: number;
-  longitude?: number;
-
-  aiResult?: AIResult;
-
-  dataUrl?: string;
-
-  error?: string;
-}
-
-type AlertSeverity = "high" | "medium" | "low";
-type AlertStatus = "ativo" | "resolvido" | "investigando" | "pendente";
-
-interface Alert {
-  id: string;
-  severity: AlertSeverity;
-  title: string;
-  location: string;
-  time: string;
-  status: AlertStatus;
-
-  imageId?: string;
-  latitude?: number;
-  longitude?: number;
-
-  rodovia?: string;
-  confianca?: number;
-}
 
 function formatBytes(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
@@ -1007,11 +1058,14 @@ function carregarImagensSalvas(): ImageEntry[] {
 }
 
 function ImagesTab({
+  images,
+  setImages,
   onAlertCreated,
 }: {
+  images: ImageEntry[];
+  setImages: React.Dispatch<React.SetStateAction<ImageEntry[]>>;
   onAlertCreated: (alert: Alert) => void;
 }) {
-  const [images, setImages] = useState<ImageEntry[]>(carregarImagensSalvas);
   const [dragging, setDragging] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -1542,6 +1596,19 @@ export default function App() {
     carregarStorage<Alert[]>(STORAGE_KEYS.alerts, []),
   );
   const time = useCurrentTime();
+  const mapRef = useRef<MapViewHandle | null>(null);
+  const [images, setImages] = useState<ImageEntry[]>([]);
+  const visualizarAlertaNoMapa = (alert: Alert) => {
+    if (alert.latitude === undefined || alert.longitude === undefined) {
+      return;
+    }
+
+    setActiveTab("mapa");
+
+    setTimeout(() => {
+      mapRef.current?.focusAlert(alert.latitude!, alert.longitude!);
+    }, 100);
+  };
 
   const activeAlerts = alerts.filter(
     (a) => a.status === "ativo" && a.severity === "high",
@@ -1572,6 +1639,11 @@ export default function App() {
 
       return atualizados;
     });
+  };
+
+  const limparTodosAlertas = () => {
+    setAlerts([]);
+    localStorage.removeItem(STORAGE_KEYS.alerts);
   };
 
   const handleMapChange = (url: string) => {
@@ -1655,7 +1727,7 @@ export default function App() {
             activeTab !== "mapa" && "invisible pointer-events-none",
           )}
         >
-          <MapTab />
+          <MapTab alerts={alerts} images={images} mapRef={mapRef} />
         </div>
         <div
           className={clsx(
@@ -1671,7 +1743,12 @@ export default function App() {
             activeTab !== "alertas" && "hidden",
           )}
         >
-          <AlertsTab alerts={alerts} onUpdateStatus={atualizarStatusAlerta} />
+          <AlertsTab
+            alerts={alerts}
+            onUpdateStatus={atualizarStatusAlerta}
+            onViewOnMap={visualizarAlertaNoMapa}
+            onClearAll={limparTodosAlertas}
+          />
         </div>
         <div
           className={clsx(
@@ -1680,6 +1757,8 @@ export default function App() {
           )}
         >
           <ImagesTab
+            images={images}
+            setImages={setImages}
             onAlertCreated={(novoAlerta) => {
               adicionarAlerta(novoAlerta);
             }}
