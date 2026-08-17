@@ -1,10 +1,19 @@
 .venv
+.venv-model/
 .env
+.env.*
+!.env.example
+!**/.env.example
 __pycache__/
 *.pyc
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
 mask_output.png
 CLAUDE.md
 image.png
+.codex-remote-attachments/
 
 # Dependências
 node_modules/
@@ -16,10 +25,6 @@ build/
 # Cache
 .vite/
 .cache/
-
-# Variáveis de ambiente
-.env
-.env.*
 
 # Sistema operacional
 .DS_Store
