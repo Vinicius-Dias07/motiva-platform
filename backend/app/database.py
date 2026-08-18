@@ -93,7 +93,7 @@ class InspectionRepository:
             async with self._pool.connection() as connection:
                 cursor = await connection.execute(
                     """
-                    SELECT id, latitude, longitude, status, confidence
+                    SELECT id, latitude, longitude, status, confidence, created_at
                     FROM inspections
                     ORDER BY created_at DESC, id DESC
                     """
@@ -106,6 +106,7 @@ class InspectionRepository:
                         longitude=float(row[2]),
                         status=str(row[3]),
                         confidence=float(row[4]),
+                        created_at=row[5],
                     )
                     for row in rows
                 ]

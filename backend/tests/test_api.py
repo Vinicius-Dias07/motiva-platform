@@ -1,5 +1,6 @@
 from collections.abc import Sequence
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 from types import SimpleNamespace
 
 import pytest
@@ -45,14 +46,16 @@ class FakeRepository:
         return self.alerts
 
 
-def model_prediction(class_name: str, confidence: float) -> dict:
+def model_prediction(
+    class_name: str, confidence: float, *, width: float = 40, height: float = 30
+) -> dict:
     return {
         "class": class_name,
         "confidence": confidence,
         "x": 100,
         "y": 80,
-        "width": 40,
-        "height": 30,
+        "width": width,
+        "height": height,
     }
 
 
@@ -74,8 +77,8 @@ def application(repository: FakeRepository):
     async def fake_segmenter(_: str):
         return SimpleNamespace(
             raw_predictions=[
-                model_prediction("grass_medium", 0.97),
-                model_prediction("grass_tall", 0.88),
+                model_prediction("mato_medio", 0.97, width=10, height=10),
+                model_prediction("mato_longo", 0.88, width=100, height=100),
             ]
         )
 
@@ -104,6 +107,7 @@ async def test_create_inspection_contract_and_persistence(
         "lon": -46.82,
         "classificacao": "alta",
         "confianca": 0.88,
+        "created_at": None,
     }
     assert repository.created is not None
     assert repository.created["status"] == "URGENTE"
@@ -112,6 +116,8 @@ async def test_create_inspection_contract_and_persistence(
 
 
 async def test_list_alerts_maps_database_status(application, repository: FakeRepository) -> None:
+    created_at_9 = datetime(2026, 1, 5, 12, 30, tzinfo=UTC)
+    created_at_8 = datetime(2026, 1, 5, 12, 0, tzinfo=UTC)
     repository.alerts = [
         StoredAlert(
             inspection_id=9,
@@ -119,6 +125,7 @@ async def test_list_alerts_maps_database_status(application, repository: FakeRep
             longitude=-46.7,
             status="ATENÇÃO",
             confidence=0.75,
+            created_at=created_at_9,
         ),
         StoredAlert(
             inspection_id=8,
@@ -126,6 +133,7 @@ async def test_list_alerts_maps_database_status(application, repository: FakeRep
             longitude=-46.8,
             status="OK",
             confidence=0.42,
+            created_at=created_at_8,
         ),
     ]
 
@@ -140,6 +148,7 @@ async def test_list_alerts_maps_database_status(application, repository: FakeRep
             "lon": -46.7,
             "classificacao": "media",
             "confianca": 0.75,
+            "created_at": "2026-01-05T12:30:00Z",
         },
         {
             "img_num": "IMG-000008",
@@ -147,6 +156,7 @@ async def test_list_alerts_maps_database_status(application, repository: FakeRep
             "lon": -46.8,
             "classificacao": "baixa",
             "confianca": 0.42,
+            "created_at": "2026-01-05T12:00:00Z",
         },
     ]
 

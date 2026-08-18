@@ -211,11 +211,17 @@ suposição):
    parser também aceita `points` como alternativa (caso outro workflow do
    Roboflow devolva polígono em vez de RLE), mas isso não foi observado na
    prática.
-6. Classes reais observadas numa única inferência de teste: `grass_medium`,
-   `grass_short`, `non_grass_veg`. `grass_tall` não apareceu na imagem
-   testada, mas é assumida por simetria (`grass_short`/`grass_medium`
-   sugerem uma terceira classe de altura). Classes desconhecidas caem no
-   fallback cinza (`FALLBACK_CLASS_COLOR`) em vez de quebrar o parser.
+6. O workflow foi atualizado para o modelo `grass-seg-dv3ek-2-yolo26n-sem-t1`
+   e agora usa nomes de classe em português. `class_map` completo (5
+   classes, `class_id` 0–4): `fundo`, `mato_curto`, `mato_longo`,
+   `mato_medio`, `vegetacao`. `mato_curto` e `vegetacao` foram confirmadas
+   numa inferência real; as demais vêm do `class_map` do modelo.
+   `fundo` é o background da segmentação semântica (não é vegetação) — é
+   descartado tanto em `mask_reconstructor.build_mask` (não é desenhado na
+   máscara) quanto em `app/domain.py` (não conta para severidade nem vira
+   `DetectionRecord`). Classes desconhecidas (fora do `class_map` acima)
+   caem no fallback cinza (`FALLBACK_CLASS_COLOR`) em vez de quebrar o
+   parser.
 
 Se a estrutura real divergir num caso novo (ex.: workflow atualizado),
 `MaskReconstructionError` é levantada com as chaves realmente recebidas na

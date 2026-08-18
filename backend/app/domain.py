@@ -1,5 +1,6 @@
 from collections.abc import Sequence
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any, Protocol
 
 CLASSIFICATION_TO_STATUS = {
@@ -9,6 +10,22 @@ CLASSIFICATION_TO_STATUS = {
 }
 STATUS_TO_CLASSIFICATION = {
     status: classification for classification, status in CLASSIFICATION_TO_STATUS.items()
+}
+
+# Nomes de classe confirmados numa inferência real contra o workflow
+# grass-seg-dv3ek (modelo grass-seg-dv3ek-2-yolo26n-sem-t1): "fundo" é
+# background do modelo de segmentação semântica, não vegetação — precisa
+# ser descartado antes de calcular severidade ou persistir detecções.
+BACKGROUND_CLASS_NAME = "fundo"
+
+# Uma mesma imagem costuma trazer várias classes de altura de mato juntas
+# (ex.: uma faixa de mato_curto e um canto isolado de mato_longo) — por
+# isso a severidade é decidida pela classe com maior área total na
+# imagem, não pela mera presença de uma classe.
+GRASS_CLASS_TO_CLASSIFICATION = {
+    "mato_curto": "baixa",
+    "mato_medio": "media",
+    "mato_longo": "alta",
 }
 
 
@@ -47,6 +64,7 @@ class StoredAlert:
     longitude: float
     status: str
     confidence: float
+    created_at: datetime
 
 
 class InspectionRepositoryProtocol(Protocol):
@@ -80,18 +98,44 @@ def _prediction_confidence(prediction: dict[str, Any]) -> float:
     return confidence
 
 
+def _prediction_area(prediction: dict[str, Any]) -> float:
+    width = prediction.get("width")
+    height = prediction.get("height")
+    if (
+        isinstance(width, bool)
+        or isinstance(height, bool)
+        or not isinstance(width, (int, float))
+        or not isinstance(height, (int, float))
+    ):
+        raise PredictionContractError("Predição sem largura/altura numérica para calcular área")
+    return float(width) * float(height)
+
+
 def summarize_predictions(predictions: Sequence[dict[str, Any]]) -> AnalysisSummary:
-    parsed = [(_prediction_class(item), _prediction_confidence(item)) for item in predictions]
+    parsed = [
+        (name, _prediction_confidence(item), item)
+        for item in predictions
+        if (name := _prediction_class(item)) != BACKGROUND_CLASS_NAME
+    ]
 
-    tall_confidences = [confidence for name, confidence in parsed if name == "grass_tall"]
-    if tall_confidences:
-        return AnalysisSummary("alta", max(tall_confidences))
+    area_by_class: dict[str, float] = {}
+    best_confidence_by_class: dict[str, float] = {}
+    for name, confidence, item in parsed:
+        if name not in GRASS_CLASS_TO_CLASSIFICATION:
+            continue
+        area_by_class[name] = area_by_class.get(name, 0.0) + _prediction_area(item)
+        best_confidence_by_class[name] = max(best_confidence_by_class.get(name, 0.0), confidence)
 
-    medium_confidences = [confidence for name, confidence in parsed if name == "grass_medium"]
-    if medium_confidences:
-        return AnalysisSummary("media", max(medium_confidences))
+    if area_by_class:
+        dominant_class = max(area_by_class, key=area_by_class.get)
+        return AnalysisSummary(
+            GRASS_CLASS_TO_CLASSIFICATION[dominant_class],
+            best_confidence_by_class[dominant_class],
+        )
 
-    return AnalysisSummary("baixa", max((confidence for _, confidence in parsed), default=0.0))
+    return AnalysisSummary(
+        "baixa", max((confidence for _, confidence, _ in parsed), default=0.0)
+    )
 
 
 def predictions_to_detection_records(
@@ -100,6 +144,8 @@ def predictions_to_detection_records(
     records: list[DetectionRecord] = []
     for prediction in predictions:
         class_name = _prediction_class(prediction)
+        if class_name == BACKGROUND_CLASS_NAME:
+            continue
         confidence = _prediction_confidence(prediction)
 
         numeric_fields: dict[str, int] = {}
