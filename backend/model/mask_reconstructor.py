@@ -17,16 +17,18 @@ class ClassStyle:
     color: Tuple[int, int, int]
 
 
-# Classes confirmadas rodando uma inferência real contra grass-seg-dv3ek
-# (ver backend/model/README.md, seção "Suposições"). "grass_tall" não foi
-# observada na imagem de teste, mas é assumida por simetria com
-# grass_short/grass_medium.
+# Classes confirmadas rodando uma inferência real contra o workflow
+# grass-seg-dv3ek (modelo grass-seg-dv3ek-2-yolo26n-sem-t1) — ver
+# backend/model/README.md, seção "Formato real do JSON do Roboflow".
 DEFAULT_CLASS_STYLES: Dict[str, ClassStyle] = {
-    "grass_tall": ClassStyle((220, 50, 50)),
-    "grass_medium": ClassStyle((230, 180, 40)),
-    "grass_short": ClassStyle((60, 170, 80)),
-    "non_grass_veg": ClassStyle((60, 120, 200)),
+    "mato_longo": ClassStyle((220, 50, 50)),
+    "mato_medio": ClassStyle((230, 180, 40)),
+    "mato_curto": ClassStyle((60, 170, 80)),
+    "vegetacao": ClassStyle((60, 120, 200)),
 }
+# "fundo" é o background do modelo de segmentação semântica (class_id 0),
+# não uma classe de vegetação — não deve ser desenhado na máscara.
+BACKGROUND_CLASS_NAME = "fundo"
 FALLBACK_CLASS_COLOR = (140, 140, 140)
 MASK_FILL_ALPHA = 140
 
@@ -164,6 +166,8 @@ def build_mask(
 
     for prediction in predictions:
         class_name = _resolve_class_name(prediction)
+        if class_name.lower() == BACKGROUND_CLASS_NAME:
+            continue
         binary_mask = _resolve_binary_mask(prediction, width=width, height=height)
         style = class_styles.get(class_name.lower())
         color = style.color if style else FALLBACK_CLASS_COLOR

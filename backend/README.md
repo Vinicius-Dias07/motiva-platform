@@ -319,7 +319,7 @@ compartilhado.
 ## O que foi testado e está funcionando
 
 - lint do backend;
-- 20 testes automatizados;
+- 23 testes automatizados;
 - dependências dos ambientes Python 3.13 e 3.11;
 - conexão e schema do Supabase;
 - execução do modelo Roboflow pelo worker Python 3.11;

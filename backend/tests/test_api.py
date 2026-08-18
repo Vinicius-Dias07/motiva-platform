@@ -46,14 +46,16 @@ class FakeRepository:
         return self.alerts
 
 
-def model_prediction(class_name: str, confidence: float) -> dict:
+def model_prediction(
+    class_name: str, confidence: float, *, width: float = 40, height: float = 30
+) -> dict:
     return {
         "class": class_name,
         "confidence": confidence,
         "x": 100,
         "y": 80,
-        "width": 40,
-        "height": 30,
+        "width": width,
+        "height": height,
     }
 
 
@@ -75,8 +77,8 @@ def application(repository: FakeRepository):
     async def fake_segmenter(_: str):
         return SimpleNamespace(
             raw_predictions=[
-                model_prediction("grass_medium", 0.97),
-                model_prediction("grass_tall", 0.88),
+                model_prediction("mato_medio", 0.97, width=10, height=10),
+                model_prediction("mato_longo", 0.88, width=100, height=100),
             ]
         )
 

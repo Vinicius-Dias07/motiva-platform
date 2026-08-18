@@ -12,6 +12,78 @@ Instruções de requerimentos e uso do código:
 
 # ========================
 
+## Como rodar a aplicação completa
+
+Passo a passo para subir o backend (API + modelo) e o dashboard juntos, localmente.
+O gerador de mapas (seção seguinte) é um script auxiliar independente, não é
+necessário para rodar a aplicação.
+
+### 1. Backend (API + modelo)
+
+```powershell
+py -3.12 -m venv .venv
+& '.\.venv\Scripts\python.exe' -m pip install --upgrade pip
+& '.\.venv\Scripts\python.exe' -m pip install -r backend\requirements-dev.txt
+& '.\.venv\Scripts\python.exe' -m pip install -r backend\model\requirements.txt
+```
+
+Localmente o backend inteiro (API + módulo do modelo) roda numa única venv — não
+é necessário manter dois Pythons separados para isso funcionar.
+
+Crie os arquivos de configuração a partir dos exemplos:
+
+```powershell
+Copy-Item backend\.env.example backend\.env
+Copy-Item backend\model\.env.example backend\model\.env
+```
+
+Em `backend/.env`, configure a `DATABASE_URL` do Supabase e aponte o worker do
+modelo para a mesma venv:
+
+```dotenv
+DATABASE_URL=postgresql://postgres.PROJECT_REF:PASSWORD@REGION.pooler.supabase.com:5432/postgres?sslmode=require
+CORS_ORIGINS=http://localhost:5173
+MODEL_PYTHON_EXECUTABLE=.venv\Scripts\python.exe
+```
+
+Em `backend/model/.env`, configure as credenciais do Roboflow
+(`ROBOFLOW_API_KEY`, `ROBOFLOW_WORKSPACE_NAME`, `ROBOFLOW_WORKFLOW_ID`). Nunca
+commite esses arquivos `.env` — eles já estão no `.gitignore`.
+
+Suba a API:
+
+```powershell
+& '.\.venv\Scripts\python.exe' -m uvicorn app.main:app `
+  --app-dir backend `
+  --port 8000 `
+  --reload `
+  --loop asyncio:SelectorEventLoop
+```
+
+O `--loop asyncio:SelectorEventLoop` é obrigatório no Windows (ver detalhes em
+[`backend/README.md`](backend/README.md)). A API fica disponível em
+`http://localhost:8000` (`/health` e `/docs`).
+
+### 2. Dashboard
+
+Em outro terminal:
+
+```bash
+cd dashboard_figma
+npm install
+npm run dev
+```
+
+O Vite mostra o endereço local (por padrão `http://localhost:5173`). Com a API
+rodando em `http://localhost:8000`, o dashboard já consegue enviar imagens para
+análise e listar os alertas reais.
+
+Documentação completa do backend (arquitetura, dois-Pythons opcional para
+paridade de produção, endpoints, testes) em
+[`backend/README.md`](backend/README.md).
+
+# ========================
+
 ## Python
 
 O Python é utilizado para o gerador e preparação dos mapas.
@@ -161,54 +233,56 @@ IMG-000001
 
 O sistema verifica os metadados EXIF da imagem e procura latitude e longitude.
 
-Caso a imagem não possua dados GPS válidos:
+**GPS é opcional.** Isso permite testar a análise com qualquer imagem, mesmo
+sem metadados de localização embutidos:
 
-- A imagem não é enviada para análise.
-- O sistema informa que o GPS não foi encontrado.
+- Caso a imagem possua GPS válido no EXIF, latitude e longitude são lidas
+  diretamente do arquivo.
+- Caso a imagem não possua GPS válido, o sistema usa uma coordenada de
+  fallback (região de São Paulo) com uma variação aleatória de até ~1km, só
+  para evitar que várias imagens sem GPS caiam exatamente no mesmo ponto do
+  mapa.
 
-Caso a imagem possua GPS válido:
-
-- A imagem é aceita.
-- Latitude e longitude são armazenadas.
-- A imagem segue para a análise simulada.
+Em ambos os casos a imagem segue normalmente para a análise real (backend +
+modelo).
 
 A leitura dos dados GPS é realizada utilizando a biblioteca `exifr`.
 
 # ========================
 
-## IA simulada
+## IA
 
-A IA utilizada atualmente é apenas uma simulação para testes.
+A análise já é real: o dashboard envia a imagem para o backend
+([`backend/README.md`](backend/README.md)), que aciona o modelo de
+segmentação de vegetação hospedado no Roboflow e devolve a classificação.
 
-Ela pode retornar classificações:
+A classificação retornada pode ser:
 
 - Baixa
 - Média
 - Alta
 
-Também são simulados:
+Ela é decidida pela classe de altura de mato (`mato_curto`/`mato_medio`/
+`mato_longo`) com **maior área total** detectada na imagem — não basta a
+classe mais severa aparecer isoladamente, ela precisa dominar a imagem em
+área. Junto da classificação vem a confiança da análise.
 
-- Confiança da análise
-- Vegetação detectada
-- Área não roçada
-
-A IA real será integrada posteriormente ao projeto.
+Se o backend estiver fora do ar ou a chamada ao modelo falhar, o dashboard
+mostra uma mensagem de erro em vez de simular um resultado.
 
 # ========================
 
-## Banco de dados provisório
+## Banco de dados
 
-Enquanto o banco de dados real está sendo desenvolvido, o projeto utiliza o `localStorage` do navegador como armazenamento provisório.
+A persistência definitiva de cada inspeção e suas detecções acontece no
+backend, em PostgreSQL/Supabase (`POST /api/v1/inspections`, ver
+[`backend/README.md`](backend/README.md)).
 
-São armazenadas informações separadas para:
-
-- Imagens
-- Análises
-- Alertas
-
-Esse armazenamento é utilizado apenas para testes e desenvolvimento.
-
-Posteriormente, ele será substituído pelo banco de dados definitivo do projeto.
+O dashboard também mantém uma cópia local em `localStorage` do navegador
+(imagens, análises e alertas), usada como cache/UX — ao carregar a tela de
+alertas, o dashboard busca `GET /api/v1/alerts` na API e faz merge com o que
+já está no `localStorage`, para alertas criados localmente não desaparecerem
+enquanto essa busca ainda está em andamento.
 
 # ========================
 
@@ -254,5 +328,7 @@ Atualmente estão disponíveis:
 O backend FastAPI, os contratos HTTP, a configuração do Supabase e os comandos de
 teste estão documentados em [`backend/README.md`](backend/README.md).
 
-Por compatibilidade de dependências, a API roda em Python 3.13 e utiliza um worker
-local Python 3.11 para executar o módulo Roboflow existente sem modificá-lo.
+Localmente, uma única venv Python já roda tanto a API quanto o worker do modelo
+(ver "Como rodar a aplicação completa" acima). `backend/README.md` também
+documenta uma variante com dois Pythons separados (3.13 para a API, 3.11 para o
+worker), útil para paridade com um ambiente de produção que exija essa divisão.
