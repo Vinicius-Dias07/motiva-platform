@@ -951,12 +951,19 @@ function tituloDaClassificacao(classificacao: AIResult["classificacao"]) {
 const FALLBACK_LATITUDE = -23.58;
 const FALLBACK_LONGITUDE = -46.72;
 
+// Deslocamento aleatório aplicado ao fallback (~até 1km) para que imagens
+// sem GPS não caiam todas exatamente no mesmo ponto e se sobreponham no mapa.
+const FALLBACK_JITTER_DEGREES = 0.01;
+
+function comJitter(base: number): number {
+  return base + (Math.random() * 2 - 1) * FALLBACK_JITTER_DEGREES;
+}
+
 const STORAGE_KEYS = {
   images: "motiva_imagens",
   analyses: "motiva_analises",
   alerts: "motiva_alertas",
   imageSequence: "motiva_image_sequence",
-  alertSequence: "motiva_alert_sequence",
 };
 
 function carregarStorage<T>(key: string, fallback: T): T {
@@ -991,14 +998,6 @@ function gerarIdImagem(): string {
   localStorage.setItem(STORAGE_KEYS.imageSequence, String(atual + 1));
 
   return `IMG-${String(atual).padStart(6, "0")}`;
-}
-
-function gerarIdAlerta(): string {
-  const atual = Number(localStorage.getItem(STORAGE_KEYS.alertSequence) || "1");
-
-  localStorage.setItem(STORAGE_KEYS.alertSequence, String(atual + 1));
-
-  return `ALT-${String(atual).padStart(6, "0")}`;
 }
 
 // ───────────────────────────────────────────────────────────────────────────────────────────────
@@ -1093,12 +1092,16 @@ function ImagesTab({
             Number.isFinite(gps.latitude) &&
             Number.isFinite(gps.longitude);
 
-          const latitude = gpsEncontrado ? gps!.latitude : FALLBACK_LATITUDE;
-          const longitude = gpsEncontrado ? gps!.longitude : FALLBACK_LONGITUDE;
+          const latitude = gpsEncontrado
+            ? gps!.latitude
+            : comJitter(FALLBACK_LATITUDE);
+          const longitude = gpsEncontrado
+            ? gps!.longitude
+            : comJitter(FALLBACK_LONGITUDE);
 
           if (!gpsEncontrado) {
             console.warn(
-              `Imagem ${id} sem GPS no EXIF — usando coordenada aproximada para teste.`,
+              `Imagem ${id} sem GPS no EXIF — usando coordenada aproximada (com variação aleatória) para teste.`,
             );
           }
 
@@ -1204,7 +1207,7 @@ function ImagesTab({
             );
 
             const novoAlerta: Alert = {
-              id: gerarIdAlerta(),
+              id: `ALT-${resultado.img_num.replace("IMG-", "")}`,
 
               severity,
 
@@ -1635,8 +1638,22 @@ export default function App() {
           };
         });
 
-        setAlerts(alertasDaApi);
-        salvarStorage(STORAGE_KEYS.alerts, alertasDaApi);
+        // Merge por id em vez de substituir: se um alerta foi criado
+        // localmente (upload+análise) enquanto esta busca inicial ainda
+        // estava em andamento, a resposta da API (buscada antes dessa
+        // criação) não vai conter esse alerta — sobrescrever o estado
+        // inteiro o faria desaparecer da tela.
+        setAlerts((prev) => {
+          const idsDaApi = new Set(alertasDaApi.map((a) => a.id));
+          const somenteLocais = prev.filter((a) => !idsDaApi.has(a.id));
+          const mesclados = [...somenteLocais, ...alertasDaApi].sort(
+            (a, b) => (a.id < b.id ? 1 : a.id > b.id ? -1 : 0),
+          );
+
+          salvarStorage(STORAGE_KEYS.alerts, mesclados);
+
+          return mesclados;
+        });
       })
       .catch((error) => {
         console.error(
