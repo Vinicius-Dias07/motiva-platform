@@ -8,6 +8,7 @@ import type {
   ImageEntry,
   ImageStatus,
 } from "./types";
+import { ApiError, createInspection, listAlerts } from "./api";
 import MapView, { MapViewHandle } from "./components/MapView";
 import {
   Globe,
@@ -945,6 +946,11 @@ function tituloDaClassificacao(classificacao: AIResult["classificacao"]) {
 
 // ─── Images Storage Tab ───────────────────────────────────────────────────────────────
 
+// Centro padrão do mapa (região metropolitana de SP) — usado quando a
+// imagem não tem GPS no EXIF, só para permitir testar a análise.
+const FALLBACK_LATITUDE = -23.58;
+const FALLBACK_LONGITUDE = -46.72;
+
 const STORAGE_KEYS = {
   images: "motiva_imagens",
   analyses: "motiva_analises",
@@ -970,7 +976,13 @@ function carregarStorage<T>(key: string, fallback: T): T {
 }
 
 function salvarStorage<T>(key: string, data: T) {
-  localStorage.setItem(key, JSON.stringify(data));
+  try {
+    localStorage.setItem(key, JSON.stringify(data));
+  } catch (error) {
+    // Cota do localStorage estourada (comum ao guardar imagens em base64) —
+    // não deve derrubar o fluxo de análise, só perde a persistência local.
+    console.warn(`Não foi possível salvar "${key}" no localStorage:`, error);
+  }
 }
 
 function gerarIdImagem(): string {
@@ -987,33 +999,6 @@ function gerarIdAlerta(): string {
   localStorage.setItem(STORAGE_KEYS.alertSequence, String(atual + 1));
 
   return `ALT-${String(atual).padStart(6, "0")}`;
-}
-
-// ─── Resposta Simulada do Modelo ───────────────────────────────────────────────────────────────
-
-function simularAnaliseIA(): AIResult {
-  const resultados: AIResult[] = [
-    {
-      classificacao: "baixa",
-      confianca: 0.94,
-      vegetacaoDetectada: 31,
-      areaNaoRocada: 12,
-    },
-    {
-      classificacao: "media",
-      confianca: 0.88,
-      vegetacaoDetectada: 57,
-      areaNaoRocada: 39,
-    },
-    {
-      classificacao: "alta",
-      confianca: 0.91,
-      vegetacaoDetectada: 82,
-      areaNaoRocada: 68,
-    },
-  ];
-
-  return resultados[Math.floor(Math.random() * resultados.length)];
 }
 
 // ───────────────────────────────────────────────────────────────────────────────────────────────
@@ -1096,32 +1081,25 @@ function ImagesTab({
         ]);
 
         try {
-          // Tenta obter latitude e longitude do EXIF
+          // Tenta obter latitude e longitude do EXIF; GPS é opcional — quando
+          // ausente, usamos uma coordenada aproximada (região metropolitana
+          // de SP, mesmo centro padrão do mapa) só para permitir testar a
+          // análise sem precisar de fotos com GPS embutido.
           const gps = await exifr.gps(file);
 
-          const latitude = gps?.latitude;
-          const longitude = gps?.longitude;
+          const gpsEncontrado =
+            typeof gps?.latitude === "number" &&
+            typeof gps?.longitude === "number" &&
+            Number.isFinite(gps.latitude) &&
+            Number.isFinite(gps.longitude);
 
-          if (
-            typeof latitude !== "number" ||
-            typeof longitude !== "number" ||
-            !Number.isFinite(latitude) ||
-            !Number.isFinite(longitude)
-          ) {
-            setImages((prev) =>
-              prev.map((item) =>
-                item.id === id
-                  ? {
-                      ...item,
-                      status: "sem_gps",
-                      error:
-                        "Não foi possível obter latitude e longitude dos metadados EXIF.",
-                    }
-                  : item,
-              ),
+          const latitude = gpsEncontrado ? gps!.latitude : FALLBACK_LATITUDE;
+          const longitude = gpsEncontrado ? gps!.longitude : FALLBACK_LONGITUDE;
+
+          if (!gpsEncontrado) {
+            console.warn(
+              `Imagem ${id} sem GPS no EXIF — usando coordenada aproximada para teste.`,
             );
-
-            return;
           }
 
           // ============================================================
@@ -1167,9 +1145,14 @@ function ImagesTab({
             ),
           );
 
-          // Simulação da imagem para a IA
-          setTimeout(() => {
-            const resultado = simularAnaliseIA();
+          // Análise real: envia a imagem para a API e aguarda o resultado do modelo
+          try {
+            const resultado = await createInspection(dataUrl, latitude, longitude);
+
+            const aiResult: AIResult = {
+              classificacao: resultado.classificacao,
+              confianca: resultado.confianca,
+            };
 
             const imagensAtuais = carregarStorage(STORAGE_KEYS.images, []);
 
@@ -1178,7 +1161,7 @@ function ImagesTab({
                 ? {
                     ...imagem,
                     status: "analisada",
-                    aiResult: resultado,
+                    aiResult,
                   }
                 : imagem,
             );
@@ -1189,8 +1172,6 @@ function ImagesTab({
               imageId: id,
               classificacao: resultado.classificacao,
               confianca: resultado.confianca,
-              vegetacaoDetectada: resultado.vegetacaoDetectada,
-              areaNaoRocada: resultado.areaNaoRocada,
               dataAnalise: new Date().toISOString(),
             };
 
@@ -1204,7 +1185,7 @@ function ImagesTab({
                   ? {
                       ...item,
                       status: "analisada",
-                      aiResult: resultado,
+                      aiResult,
                     }
                   : item,
               ),
@@ -1222,8 +1203,6 @@ function ImagesTab({
               resultado.classificacao,
             );
 
-            const agora = new Date();
-
             const novoAlerta: Alert = {
               id: gerarIdAlerta(),
 
@@ -1231,11 +1210,13 @@ function ImagesTab({
 
               title: tituloDaClassificacao(resultado.classificacao),
 
-              location: `Imagem ${id}`,
+              location: `Imagem ${resultado.img_num}`,
 
-              time: agora.toLocaleTimeString("pt-BR", {
-                hour12: false,
-              }),
+              time: resultado.created_at
+                ? new Date(resultado.created_at).toLocaleTimeString("pt-BR", {
+                    hour12: false,
+                  })
+                : new Date().toLocaleTimeString("pt-BR", { hour12: false }),
 
               status: severity === "low" ? "pendente" : "ativo",
 
@@ -1249,7 +1230,26 @@ function ImagesTab({
             };
 
             onAlertCreated(novoAlerta);
-          }, 2500);
+          } catch (analiseError) {
+            const mensagem =
+              analiseError instanceof ApiError
+                ? analiseError.detail
+                : "Erro inesperado ao analisar a imagem.";
+
+            console.error(`Erro ao analisar a imagem ${id}:`, analiseError);
+
+            setImages((prev) =>
+              prev.map((item) =>
+                item.id === id
+                  ? {
+                      ...item,
+                      status: "erro",
+                      error: mensagem,
+                    }
+                  : item,
+              ),
+            );
+          }
         } catch (error) {
           console.error(`Erro ao ler EXIF da imagem ${id}:`, error);
 
@@ -1493,6 +1493,14 @@ function ImagesTab({
                         ✕ Erro no processamento
                       </span>
                     )}
+                    {img.error && (
+                      <div
+                        className="text-[9px] font-mono text-red-400/70 mt-0.5 truncate"
+                        title={img.error}
+                      >
+                        {img.error}
+                      </div>
+                    )}
                   </div>
                   {img.latitude !== undefined &&
                     img.longitude !== undefined && (
@@ -1597,7 +1605,51 @@ export default function App() {
   );
   const time = useCurrentTime();
   const mapRef = useRef<MapViewHandle | null>(null);
-  const [images, setImages] = useState<ImageEntry[]>([]);
+  const [images, setImages] = useState<ImageEntry[]>(carregarImagensSalvas);
+
+  useEffect(() => {
+    let cancelado = false;
+
+    listAlerts()
+      .then((resultados) => {
+        if (cancelado) return;
+
+        const alertasDaApi: Alert[] = resultados.map((resultado) => {
+          const severity = classificacaoParaSeveridade(resultado.classificacao);
+
+          return {
+            id: `ALT-${resultado.img_num.replace("IMG-", "")}`,
+            severity,
+            title: tituloDaClassificacao(resultado.classificacao),
+            location: `Imagem ${resultado.img_num}`,
+            time: resultado.created_at
+              ? new Date(resultado.created_at).toLocaleTimeString("pt-BR", {
+                  hour12: false,
+                })
+              : "",
+            status: severity === "low" ? "pendente" : "ativo",
+            imageId: resultado.img_num,
+            latitude: resultado.lat,
+            longitude: resultado.lon,
+            confianca: resultado.confianca,
+          };
+        });
+
+        setAlerts(alertasDaApi);
+        salvarStorage(STORAGE_KEYS.alerts, alertasDaApi);
+      })
+      .catch((error) => {
+        console.error(
+          "Não foi possível carregar alertas da API; usando cache local.",
+          error,
+        );
+      });
+
+    return () => {
+      cancelado = true;
+    };
+  }, []);
+
   const visualizarAlertaNoMapa = (alert: Alert) => {
     if (alert.latitude === undefined || alert.longitude === undefined) {
       return;

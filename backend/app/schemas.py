@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Annotated
 
 from pydantic import BaseModel, Field, StringConstraints
@@ -17,6 +18,7 @@ class AlertResponse(BaseModel):
     lon: float
     classificacao: str
     confianca: float = Field(ge=0, le=1)
+    created_at: datetime | None = None
 
 
 class HealthResponse(BaseModel):

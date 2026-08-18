@@ -188,6 +188,7 @@ def create_app() -> FastAPI:
                     lon=alert.longitude,
                     classificacao=classification_from_status(alert.status),
                     confianca=alert.confidence,
+                    created_at=alert.created_at,
                 )
                 for alert in alerts
             ]

@@ -1,5 +1,6 @@
 from collections.abc import Sequence
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any, Protocol
 
 CLASSIFICATION_TO_STATUS = {
@@ -47,6 +48,7 @@ class StoredAlert:
     longitude: float
     status: str
     confidence: float
+    created_at: datetime
 
 
 class InspectionRepositoryProtocol(Protocol):

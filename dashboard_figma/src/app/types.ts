@@ -9,8 +9,8 @@ export type ImageStatus =
 export interface AIResult {
   classificacao: "baixa" | "media" | "alta";
   confianca: number;
-  vegetacaoDetectada: number;
-  areaNaoRocada: number;
+  vegetacaoDetectada?: number;
+  areaNaoRocada?: number;
 }
 
 export interface ImageEntry {
