@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import exifr from "exifr";
 import type {
   Alert,
   AlertSeverity,
@@ -946,17 +945,120 @@ function tituloDaClassificacao(classificacao: AIResult["classificacao"]) {
 
 // ─── Images Storage Tab ───────────────────────────────────────────────────────────────
 
-// Centro padrão do mapa (região metropolitana de SP) — usado quando a
-// imagem não tem GPS no EXIF, só para permitir testar a análise.
-const FALLBACK_LATITUDE = -23.58;
-const FALLBACK_LONGITUDE = -46.72;
+// Rodovias disponíveis para o usuário indicar onde a imagem foi capturada.
+// Cada imagem enviada é marcada exatamente no ponto de referência da rodovia
+// escolhida no popup de upload.
+interface RoadLocation {
+  id: string;
+  label: string;
+  latitude: number;
+  longitude: number;
+  reference: string;
+}
 
-// Deslocamento aleatório aplicado ao fallback (~até 1km) para que imagens
-// sem GPS não caiam todas exatamente no mesmo ponto e se sobreponham no mapa.
-const FALLBACK_JITTER_DEGREES = 0.01;
+const ROAD_LOCATIONS: RoadLocation[] = [
+  {
+    id: "presidente-dutra",
+    label: "Presidente Dutra (BR-116)",
+    latitude: -23.2235,
+    longitude: -45.9005,
+    reference: "São José dos Campos",
+  },
+  {
+    id: "rodoanel-mario-covas",
+    label: "Rodoanel Mário Covas (SP-021)",
+    latitude: -23.546,
+    longitude: -46.835,
+    reference: "Trecho oeste",
+  },
+  {
+    id: "rodovia-bandeirantes",
+    label: "Rodovia dos Bandeirantes (SP-348)",
+    latitude: -23.185,
+    longitude: -46.884,
+    reference: "Região de Jundiaí",
+  },
+  {
+    id: "rodovia-anhanguera",
+    label: "Rodovia Anhanguera (SP-330)",
+    latitude: -23.18,
+    longitude: -46.87,
+    reference: "Região de Jundiaí",
+  },
+];
 
-function comJitter(base: number): number {
-  return base + (Math.random() * 2 - 1) * FALLBACK_JITTER_DEGREES;
+// [longitude, latitude], igual ao formato de coordenadas do GeoJSON.
+type GeoPoint = [number, number];
+
+// Mesmos arquivos GeoJSON desenhados no mapa (ver MapView.tsx) — usados aqui
+// só para sortear um ponto que caia em cima do traçado real da rodovia.
+const ROAD_GEOJSON_FILES: Record<string, string> = {
+  "presidente-dutra": "/geojson/via_dutra.geojson",
+  "rodoanel-mario-covas": "/geojson/rodoanel_rocada.geojson",
+  "rodovia-bandeirantes": "/geojson/autoban.geojson",
+  "rodovia-anhanguera": "/geojson/autoban.geojson",
+};
+
+function centroideDoAnel(anel: number[][] | undefined): GeoPoint | null {
+  if (!anel || anel.length === 0) return null;
+
+  let somaLon = 0;
+  let somaLat = 0;
+
+  for (const [lon, lat] of anel) {
+    somaLon += lon;
+    somaLat += lat;
+  }
+
+  return [somaLon / anel.length, somaLat / anel.length];
+}
+
+// Extrai, de um GeoJSON já carregado, os pontos pertencentes à rodovia
+// indicada — usados para sortear onde a imagem aparece no mapa, sempre em
+// cima do traçado real desenhado (ver MapView).
+function extrairPontosDaRodovia(roadId: string, geojson: any): GeoPoint[] {
+  const features: any[] = geojson?.features ?? [];
+
+  if (roadId === "presidente-dutra") {
+    return features
+      .filter((feature) => feature.properties?.sg_uf === "SP")
+      .flatMap((feature) => feature.geometry?.coordinates ?? []);
+  }
+
+  if (roadId === "rodoanel-mario-covas") {
+    return features
+      .map((feature) => centroideDoAnel(feature.geometry?.coordinates?.[0]))
+      .filter((ponto): ponto is GeoPoint => ponto !== null);
+  }
+
+  if (roadId === "rodovia-bandeirantes") {
+    return features
+      .filter((feature) => feature.properties?.rodovia === "SP-348")
+      .flatMap((feature) => feature.geometry?.coordinates ?? []);
+  }
+
+  if (roadId === "rodovia-anhanguera") {
+    return features
+      .filter((feature) => feature.properties?.rodovia === "SP-330")
+      .flatMap((feature) => feature.geometry?.coordinates ?? []);
+  }
+
+  return [];
+}
+
+// Sorteia uma coordenada dentro dos pontos reais da rodovia (linha/polígonos
+// do GeoJSON). Se o GeoJSON ainda não carregou ou não tiver pontos, cai no
+// ponto de referência fixo da rodovia como fallback.
+function sortearCoordenadaDaRodovia(
+  location: RoadLocation,
+  pontos: GeoPoint[] | undefined,
+): { latitude: number; longitude: number } {
+  if (pontos && pontos.length > 0) {
+    const [longitude, latitude] = pontos[Math.floor(Math.random() * pontos.length)];
+    return { latitude, longitude };
+  }
+
+  return { latitude: location.latitude, longitude: location.longitude };
 }
 
 const STORAGE_KEYS = {
@@ -1036,6 +1138,7 @@ function carregarImagensSalvas(): ImageEntry[] {
     status: imagem.status,
     latitude: imagem.latitude,
     longitude: imagem.longitude,
+    rodovia: imagem.rodovia,
     aiResult: imagem.aiResult,
     error: imagem.error,
   }));
@@ -1052,9 +1155,53 @@ function ImagesTab({
 }) {
   const [dragging, setDragging] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [locationPickerOpen, setLocationPickerOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const pendingRoadRef = useRef<RoadLocation | null>(null);
+  const pendingDropFilesRef = useRef<File[] | null>(null);
+  const roadPointsRef = useRef<Record<string, GeoPoint[]>>({});
 
-  const loadFiles = useCallback(async (files: File[]) => {
+  // Carrega, uma vez, os mesmos GeoJSON das rodovias exibidos no mapa, para
+  // sortear coordenadas que caiam em cima do traçado real de cada rodovia.
+  useEffect(() => {
+    let cancelado = false;
+
+    async function carregarPontosDasRodovias() {
+      const urls = Array.from(new Set(Object.values(ROAD_GEOJSON_FILES)));
+
+      try {
+        const respostas = await Promise.all(
+          urls.map((url) => fetch(url).then((resposta) => resposta.json())),
+        );
+
+        if (cancelado) return;
+
+        const geojsonPorUrl = new Map(urls.map((url, i) => [url, respostas[i]]));
+
+        const pontosPorRodovia: Record<string, GeoPoint[]> = {};
+
+        for (const location of ROAD_LOCATIONS) {
+          const geojson = geojsonPorUrl.get(ROAD_GEOJSON_FILES[location.id]);
+          pontosPorRodovia[location.id] = extrairPontosDaRodovia(
+            location.id,
+            geojson,
+          );
+        }
+
+        roadPointsRef.current = pontosPorRodovia;
+      } catch (error) {
+        console.error("Erro ao carregar coordenadas das rodovias:", error);
+      }
+    }
+
+    carregarPontosDasRodovias();
+
+    return () => {
+      cancelado = true;
+    };
+  }, []);
+
+  const loadFiles = useCallback(async (files: File[], location: RoadLocation) => {
     const imageFiles = files.filter((file) => file.type.startsWith("image/"));
 
     for (const file of imageFiles) {
@@ -1075,35 +1222,19 @@ function ImagesTab({
             size: file.size,
             width: img.naturalWidth,
             height: img.naturalHeight,
-            status: "analisando_exif",
+            status: "processando_ia",
+            rodovia: location.label,
           },
         ]);
 
         try {
-          // Tenta obter latitude e longitude do EXIF; GPS é opcional — quando
-          // ausente, usamos uma coordenada aproximada (região metropolitana
-          // de SP, mesmo centro padrão do mapa) só para permitir testar a
-          // análise sem precisar de fotos com GPS embutido.
-          const gps = await exifr.gps(file);
-
-          const gpsEncontrado =
-            typeof gps?.latitude === "number" &&
-            typeof gps?.longitude === "number" &&
-            Number.isFinite(gps.latitude) &&
-            Number.isFinite(gps.longitude);
-
-          const latitude = gpsEncontrado
-            ? gps!.latitude
-            : comJitter(FALLBACK_LATITUDE);
-          const longitude = gpsEncontrado
-            ? gps!.longitude
-            : comJitter(FALLBACK_LONGITUDE);
-
-          if (!gpsEncontrado) {
-            console.warn(
-              `Imagem ${id} sem GPS no EXIF — usando coordenada aproximada (com variação aleatória) para teste.`,
-            );
-          }
+          // Coordenada sorteada em cima do traçado real (GeoJSON) da rodovia
+          // escolhida pelo usuário no popup de upload, para a imagem cair
+          // dentro da linha da rodovia no mapa.
+          const { latitude, longitude } = sortearCoordenadaDaRodovia(
+            location,
+            roadPointsRef.current[location.id],
+          );
 
           // ============================================================
           // SALVAR IMAGEM NO BANCO SIMULADO
@@ -1120,6 +1251,7 @@ function ImagesTab({
             height: img.naturalHeight,
             latitude,
             longitude,
+            rodovia: location.label,
             status: "processando_ia",
             dataUpload: new Date().toISOString(),
           };
@@ -1213,7 +1345,7 @@ function ImagesTab({
 
               title: tituloDaClassificacao(resultado.classificacao),
 
-              location: `Imagem ${resultado.img_num}`,
+              location: `${location.label} — Imagem ${resultado.img_num}`,
 
               time: resultado.created_at
                 ? new Date(resultado.created_at).toLocaleTimeString("pt-BR", {
@@ -1228,6 +1360,8 @@ function ImagesTab({
               latitude,
 
               longitude,
+
+              rodovia: location.label,
 
               confianca: resultado.confianca,
             };
@@ -1254,7 +1388,7 @@ function ImagesTab({
             );
           }
         } catch (error) {
-          console.error(`Erro ao ler EXIF da imagem ${id}:`, error);
+          console.error(`Erro ao processar a imagem ${id}:`, error);
 
           setImages((prev) =>
             prev.map((item) =>
@@ -1262,7 +1396,7 @@ function ImagesTab({
                 ? {
                     ...item,
                     status: "erro",
-                    error: "Ocorreu um erro ao ler os metadados EXIF.",
+                    error: "Ocorreu um erro ao processar a imagem.",
                   }
                 : item,
             ),
@@ -1291,14 +1425,43 @@ function ImagesTab({
   }, []);
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) loadFiles(Array.from(e.target.files));
+    const location = pendingRoadRef.current;
+    pendingRoadRef.current = null;
+    if (e.target.files && location) loadFiles(Array.from(e.target.files), location);
     e.target.value = "";
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragging(false);
-    if (e.dataTransfer.files) loadFiles(Array.from(e.dataTransfer.files));
+    const files = e.dataTransfer.files ? Array.from(e.dataTransfer.files) : [];
+    if (files.length === 0) return;
+    pendingDropFilesRef.current = files;
+    setLocationPickerOpen(true);
+  };
+
+  const openUploadDialog = () => {
+    pendingDropFilesRef.current = null;
+    setLocationPickerOpen(true);
+  };
+
+  const handleSelectLocation = (location: RoadLocation) => {
+    setLocationPickerOpen(false);
+
+    const droppedFiles = pendingDropFilesRef.current;
+    pendingDropFilesRef.current = null;
+
+    if (droppedFiles) {
+      loadFiles(droppedFiles, location);
+    } else {
+      pendingRoadRef.current = location;
+      fileInputRef.current?.click();
+    }
+  };
+
+  const cancelLocationPicker = () => {
+    setLocationPickerOpen(false);
+    pendingDropFilesRef.current = null;
   };
 
   const removeImage = (id: string) => {
@@ -1359,7 +1522,7 @@ function ImagesTab({
           }}
           onDragLeave={() => setDragging(false)}
           onDrop={handleDrop}
-          onClick={() => fileInputRef.current?.click()}
+          onClick={openUploadDialog}
           className={clsx(
             "border border-dashed transition-all cursor-pointer flex items-center gap-6 px-8 py-6",
             dragging
@@ -1384,7 +1547,7 @@ function ImagesTab({
                 : "Arraste imagens ou clique para selecionar"}
             </div>
             <div className="text-[11px] font-mono text-muted-foreground mt-0.5">
-              JPG, PNG, WebP — a imagem precisa conter GPS nos metadados EXIF
+              JPG, PNG, WebP — você escolherá a rodovia da imagem em seguida
             </div>
           </div>
           {images.length > 0 && (
@@ -1505,6 +1668,12 @@ function ImagesTab({
                       </div>
                     )}
                   </div>
+                  {img.rodovia && (
+                    <div className="text-[10px] font-mono text-primary/80 mt-1">
+                      {img.rodovia}
+                    </div>
+                  )}
+
                   {img.latitude !== undefined &&
                     img.longitude !== undefined && (
                       <div className="text-[10px] font-mono text-muted-foreground mt-1">
@@ -1594,6 +1763,71 @@ function ImagesTab({
           onNext={nextImage}
         />
       )}
+
+      {/* Popup de seleção da rodovia */}
+      {locationPickerOpen && (
+        <LocationPickerModal
+          onSelect={handleSelectLocation}
+          onClose={cancelLocationPicker}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── Location Picker Modal ──────────────────────────────────────────────────────
+
+function LocationPickerModal({
+  onSelect,
+  onClose,
+}: {
+  onSelect: (location: RoadLocation) => void;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="w-[360px] max-w-[90vw] bg-card border border-border p-5"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <div className="text-sm font-mono text-foreground">
+            Selecione a rodovia da imagem
+          </div>
+          <button
+            onClick={onClose}
+            className="text-muted-foreground hover:text-foreground transition-colors p-1"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          {ROAD_LOCATIONS.map((location) => (
+            <button
+              key={location.id}
+              onClick={() => onSelect(location)}
+              className="text-left px-3 py-2.5 text-[12px] font-mono border border-border hover:border-primary/40 hover:bg-primary/[0.05] transition-colors text-foreground"
+            >
+              <div>{location.label}</div>
+              <div className="text-[10px] text-muted-foreground mt-0.5">
+                {location.reference}
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
