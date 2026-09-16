@@ -24,6 +24,7 @@ export interface ImageEntry {
 
   latitude?: number;
   longitude?: number;
+  rodovia?: string;
 
   aiResult?: AIResult;
 
