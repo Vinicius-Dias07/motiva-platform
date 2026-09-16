@@ -332,3 +332,66 @@ Localmente, uma única venv Python já roda tanto a API quanto o worker do model
 (ver "Como rodar a aplicação completa" acima). `backend/README.md` também
 documenta uma variante com dois Pythons separados (3.13 para a API, 3.11 para o
 worker), útil para paridade com um ambiente de produção que exija essa divisão.
+
+# ========================
+
+## Como subir com Docker
+
+Alternativa ao passo a passo manual: sobe banco de dados, backend e dashboard
+com um único comando, usando os `Dockerfile`s de `backend/` e
+`dashboard_figma/` e o `docker-compose.yml` da raiz do repositório.
+
+### Requisitos
+
+- Docker
+- Docker Compose (já incluso no Docker Desktop / Docker Engine recente)
+
+### 1. Configurar variáveis de ambiente
+
+Copie o exemplo para a raiz do repositório:
+
+```bash
+cp .env.example .env
+```
+
+Edite o `.env` e preencha as credenciais do Roboflow (`ROBOFLOW_API_KEY`,
+`ROBOFLOW_WORKSPACE_NAME`, `ROBOFLOW_WORKFLOW_ID`) — sem elas o worker do
+modelo falha com "Configuração do modelo ausente" (500) no primeiro upload.
+Nunca commite esse arquivo `.env`.
+
+### 2. Subir os containers
+
+Na raiz do repositório:
+
+```bash
+docker compose up --build
+```
+
+Isso sobe três serviços:
+
+- `db`: PostgreSQL 16, com as migrations de `database/migrations` aplicadas
+  automaticamente na primeira inicialização
+- `backend`: API FastAPI + modelo, disponível em `http://localhost:8000`
+  (`/health` e `/docs`)
+- `frontend`: dashboard React/Vite compilado e servido em
+  `http://localhost:8080`
+
+Para rodar em segundo plano:
+
+```bash
+docker compose up --build -d
+```
+
+### 3. Acompanhar logs e encerrar
+
+```bash
+docker compose logs -f
+docker compose down
+```
+
+`docker compose down` remove os containers mas mantém o volume `db_data`
+(dados do banco). Para apagar também os dados do banco:
+
+```bash
+docker compose down -v
+```
